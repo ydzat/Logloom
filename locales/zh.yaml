@@ -1,0 +1,16 @@
+system:
+  start_message: "系统启动"
+  shutdown_message: "系统正在关闭"
+  error_message: "发生错误：%s"
+log:
+  level_info: "信息"
+  level_debug: "调试"
+  level_warn: "警告"
+  level_error: "错误"
+auth:
+  login_success: "登录成功"
+  login_failed: "登录失败，请重试"
+  access_denied: "拒绝访问：%s"
+test:
+  hello: "你好，%s！"
+  error_count: "遇到了 %d 个错误"

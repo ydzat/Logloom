@@ -1,6 +1,33 @@
-# Logloom
+# Logloom (MVP)
 
 更换语言：[EN](./README_EN.md)
+
+> **注意**: 当前版本为最小可行产品(MVP)，正在积极开发中。核心功能已实现，但更多高级特性将在后续版本添加。
+
+---
+
+## 📊 开发阶段（Development Status）
+
+当前Logloom项目处于积极开发阶段：
+
+- **当前支持**：C语言接口（同时支持纯C和C++项目）
+- **开发中**：分离内核态和用户空间实现，Python绑定和API接口
+- **规划中**：独立进程/容器插件系统，AI分析模块集成
+
+### 开发里程碑
+
+| 里程碑编号 | 名称             | 完成标志                             | 状态 |
+|---------|----------------|----------------------------------|------|
+| M0      | 初始化项目结构      | 完成 Makefile / 源码目录 / YAML 输入结构  | ✅ 已完成 |
+| M1      | 多语言支持构建与核心  | 能够加载 YAML 并通过 `lang_get()` 取出字符串 | ✅ 已完成 |
+| M2      | 日志系统初步       | 输出结构化日志到控制台 / 文件，支持多等级        | ✅ 已完成 |
+| M3      | 配置加载与默认合并   | 正确加载配置 YAML 并生成头文件 / 结构体       | ✅ 已完成 |
+| M4      | 日志文件轮转功能    | 日志达到最大容量后成功生成新文件               | ✅ 已完成 |
+| M5      | 插件注册与运行框架   | 成功加载 `.so` 插件并执行其 process()     | ✅ 已完成 |
+| M6      | 测试集成         | 所有模块能通过至少 3 条测试用例验证            | ✅ 已完成 |
+| M7      | 最小可运行版本（MVP）| 执行演示程序，加载语言+配置，写入日志           | ✅ 已完成 |
+| M8      | Python绑定和扩展API| 支持在Python中调用Logloom核心功能        | 🚧 开发中 |
+| M9      | AI分析模块集成    | 支持智能日志分析和诊断功能                  | 📅 规划中 |
 
 ---
 
@@ -129,13 +156,89 @@ Logloom 基础系统包含以下模块：
 
 ---
 
+## 🚀 快速开始（Quick Start）
+
+### 安装
+
+1. 克隆仓库
+   ```bash
+   git clone https://github.com/yourusername/Logloom.git
+   cd Logloom
+   ```
+
+2. 编译项目
+   ```bash
+   make
+   ```
+
+### 基本使用
+
+1. **创建配置文件**
+
+   创建 `config.yaml` 文件（或使用示例配置文件）:
+
+   ```yaml
+   logloom:
+     language: "zh"  # 或 "en"
+     log:
+       level: "DEBUG"  # 可选: DEBUG, INFO, WARN, ERROR
+       file: "./app.log"
+       max_size: 1048576  # 1MB
+       console: true
+   ```
+
+2. **在你的C程序中使用**
+
+   ```c
+   #include "include/log.h"
+   #include "include/lang.h"
+   
+   int main() {
+       // 初始化日志系统
+       log_init();
+       log_set_level(LOG_LEVEL_DEBUG);
+       log_set_output_file("my_app.log");
+       
+       // 设置语言
+       lang_set_language("zh");  // 或 "en"
+       
+       // 使用日志系统
+       log_debug("LOGLOOM_LANG_DEBUG_MESSAGE", 123);
+       log_info("LOGLOOM_LANG_INFO_MESSAGE");
+       log_warn("LOGLOOM_LANG_WARN_WITH_PARAM", "警告参数");
+       log_error("LOGLOOM_LANG_ERROR_CODE", 404);
+       
+       return 0;
+   }
+   ```
+
+3. **编译你的程序**
+
+   ```bash
+   gcc your_program.c -I/path/to/logloom/include -L/path/to/logloom -llogloom -o yourprogram
+   ```
+
+### 运行演示
+
+```bash
+# 编译并运行示例程序
+make demo
+./demo
+```
+
+查看生成的日志文件或控制台输出。
+
+---
+
 ## 📚 技术路线图（Technical Roadmap）
 
-1. 发布 Python + C 语言的基础 SDK
-2. 支持语言扩展（新增西班牙语、法语等）
-3. 增强日志安全性（敏感信息自动脱敏）
-4. 引入基于日志的异常检测与告警系统
-5. 集成轻量级日志智能分析模块
+1. **当前 MVP**: 基础日志和国际化功能
+2. 分离内核态和用户空间实现
+3. 发布 Python + C 语言的完整 SDK
+4. 支持更多语言扩展（新增西班牙语、法语等）
+5. 增强日志安全性（敏感信息自动脱敏）
+6. 引入基于日志的异常检测与告警系统
+7. 集成轻量级日志智能分析模块
 
 ---
 

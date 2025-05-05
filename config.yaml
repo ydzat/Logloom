@@ -1,0 +1,48 @@
+logloom:
+  # 默认语言设置 (en: 英文, zh: 中文)
+  language: "en"
+  
+  # 日志系统配置
+  log:
+    # 日志级别 (DEBUG, INFO, WARN, ERROR)
+    level: "INFO"
+    
+    # 日志文件路径，留空表示不输出到文件
+    file: "logloom.log"
+    
+    # 日志文件最大大小（字节），默认1MB
+    max_size: 1048576
+    
+    # 是否在控制台显示日志
+    console: true
+  
+  # 插件系统配置
+  plugin:
+    # 插件搜索路径列表
+    paths:
+      - "/usr/lib/logloom/plugins"
+      - "./plugins"
+    
+    # 启用的插件列表
+    enabled:
+      - "sample_filter"
+    
+    # 禁用的插件列表
+    disabled:
+      - "debug_plugin"
+    
+    # 插件加载顺序（重要性从高到低）
+    order:
+      - "security_filter"
+      - "sample_filter"
+      - "log_exporter"
+    
+    # 插件特定配置
+    config:
+      sample_filter:
+        keywords: ["ERROR", "FATAL", "CRITICAL"]
+        case_sensitive: false
+      
+      log_exporter:
+        output_format: "json"
+        destination: "/var/log/exported"

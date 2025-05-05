@@ -1,0 +1,91 @@
+# Compiled object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Compiled dynamic libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.a
+*.la
+*.lo
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Log files
+*.log
+*.log.*
+
+# Build directory content
+build/*
+!build/.gitkeep
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Generated header files
+include/generated/*
+!include/generated/.gitkeep
+
+# 编译产物
+*.o
+*.so
+*.a
+*.out
+*.exe
+
+# 临时文件
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 编译目录
+/build/
+
+# 日志文件
+*.log
+*.log.*
+
+# IDE 文件
+.vscode/
+.idea/
+*.sublime-*
+*.code-workspace
+
+# 临时测试文件
+/tmp/
+/test/tmp/
+
+# 二进制可执行文件
+/tests/config_test
+/tests/lang_test
+/tests/log_rotate_test
+/tests/log_test
+/tests/plugin_test
+/demo
+
+# 其他生成文件
+/include/generated/

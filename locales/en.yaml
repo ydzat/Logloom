@@ -1,0 +1,16 @@
+system:
+  start_message: "System started"
+  shutdown_message: "System shutting down"
+  error_message: "Error occurred: %s"
+log:
+  level_info: "INFO"
+  level_debug: "DEBUG"
+  level_warn: "WARNING"
+  level_error: "ERROR"
+auth:
+  login_success: "Login successful"
+  login_failed: "Login failed, please try again"
+  access_denied: "Access denied: %s"
+test:
+  hello: "Hello, %s!"
+  error_count: "Encountered %d errors"

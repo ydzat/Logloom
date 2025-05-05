@@ -1,0 +1,123 @@
+# Logloom Test Makefile
+
+CC = gcc
+CFLAGS = -Wall -Werror -g -I./include 
+LDFLAGS = -lpthread -ldl -lcjson  # 为日志系统的线程安全提供pthread支持，为插件系统提供dl和cjson支持
+
+# 目录
+SRC_DIR = src
+BUILD_DIR = build
+INCLUDE_DIR = include
+TEST_DIR = tests
+TEST_BUILD_DIR = $(BUILD_DIR)/tests
+PLUGINS_DIR = $(TEST_BUILD_DIR)/plugins
+
+# 源文件
+LANG_SRC = $(wildcard $(SRC_DIR)/lang/*.c)
+LOG_SRC = $(wildcard $(SRC_DIR)/log/*.c)
+CONFIG_SRC = $(wildcard $(SRC_DIR)/config/*.c)
+PLUGIN_SRC = $(wildcard $(SRC_DIR)/plugin/*.c)
+
+# 测试源文件
+LOG_TEST_SRC = $(TEST_DIR)/log_test.c
+CONFIG_TEST_SRC = $(TEST_DIR)/config_test.c
+LOG_ROTATE_TEST_SRC = $(TEST_DIR)/log_rotate_test.c
+PLUGIN_TEST_SRC = $(TEST_DIR)/plugin_test.c
+SAMPLE_FILTER_SRC = $(TEST_DIR)/sample_filter_plugin.c
+LANG_TEST_SRC = $(TEST_DIR)/lang_test.c
+
+# 对象文件
+LANG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LANG_SRC))
+LOG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LOG_SRC))
+CONFIG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(CONFIG_SRC))
+PLUGIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(PLUGIN_SRC))
+LOG_TEST_OBJ = $(TEST_BUILD_DIR)/log_test.o
+CONFIG_TEST_OBJ = $(TEST_BUILD_DIR)/config_test.o
+LOG_ROTATE_TEST_OBJ = $(TEST_BUILD_DIR)/log_rotate_test.o
+PLUGIN_TEST_OBJ = $(TEST_BUILD_DIR)/plugin_test.o
+LANG_TEST_OBJ = $(TEST_BUILD_DIR)/lang_test.o
+
+# 测试目标
+all: dirs $(TEST_BUILD_DIR)/log_test $(TEST_BUILD_DIR)/config_test $(TEST_BUILD_DIR)/log_rotate_test $(TEST_BUILD_DIR)/plugin_test $(TEST_BUILD_DIR)/lang_test $(PLUGINS_DIR)/sample_filter.so
+
+dirs:
+	mkdir -p $(TEST_BUILD_DIR) $(BUILD_DIR)/config $(BUILD_DIR)/log $(BUILD_DIR)/lang $(BUILD_DIR)/plugin $(PLUGINS_DIR)
+
+# 日志测试程序
+$(TEST_BUILD_DIR)/log_test: $(LOG_TEST_OBJ) $(LOG_OBJ) $(LANG_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# 配置测试程序
+$(TEST_BUILD_DIR)/config_test: $(CONFIG_TEST_OBJ) $(CONFIG_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# 日志轮转测试程序
+$(TEST_BUILD_DIR)/log_rotate_test: $(LOG_ROTATE_TEST_OBJ) $(LOG_OBJ) $(LANG_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# 插件系统测试程序
+$(TEST_BUILD_DIR)/plugin_test: $(PLUGIN_TEST_OBJ) $(PLUGIN_OBJ) $(LOG_OBJ) $(LANG_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# 语言模块测试程序
+$(TEST_BUILD_DIR)/lang_test: $(LANG_TEST_OBJ) $(LANG_OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+# 示例过滤器插件共享库
+$(PLUGINS_DIR)/sample_filter.so: $(SAMPLE_FILTER_SRC)
+	$(CC) -shared -fPIC $(CFLAGS) -o $@ $^ -lcjson
+
+# 构建测试对象文件
+$(TEST_BUILD_DIR)/%.o: $(TEST_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 构建配置对象文件
+$(BUILD_DIR)/config/%.o: $(SRC_DIR)/config/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 构建日志对象文件
+$(BUILD_DIR)/log/%.o: $(SRC_DIR)/log/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 构建语言对象文件
+$(BUILD_DIR)/lang/%.o: $(SRC_DIR)/lang/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 构建插件对象文件
+$(BUILD_DIR)/plugin/%.o: $(SRC_DIR)/plugin/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 运行测试规则
+run-log-test: $(TEST_BUILD_DIR)/log_test
+	@echo "Running log system tests..."
+	@./$(TEST_BUILD_DIR)/log_test
+	@echo "Log system test completed."
+
+run-config-test: $(TEST_BUILD_DIR)/config_test
+	@echo "Running configuration system tests..."
+	@./$(TEST_BUILD_DIR)/config_test
+	@echo "Configuration system test completed."
+
+run-log-rotate-test: $(TEST_BUILD_DIR)/log_rotate_test
+	@echo "Running log rotation tests..."
+	@./$(TEST_BUILD_DIR)/log_rotate_test
+	@echo "Log rotation test completed."
+
+run-plugin-test: $(TEST_BUILD_DIR)/plugin_test $(PLUGINS_DIR)/sample_filter.so
+	@echo "Running plugin system tests..."
+	@cd $(TEST_BUILD_DIR) && ./plugin_test
+	@echo "Plugin system test completed."
+
+run-lang-test: $(TEST_BUILD_DIR)/lang_test
+	@echo "Running language system tests..."
+	@./$(TEST_BUILD_DIR)/lang_test
+	@echo "Language system test completed."
+
+# 默认测试目标，运行所有测试
+test: run-log-test run-config-test run-log-rotate-test run-plugin-test run-lang-test
+
+clean:
+	rm -rf $(TEST_BUILD_DIR)
+	rm -f rotate_test.log*
+
+.PHONY: all clean test dirs run-log-test run-config-test run-log-rotate-test run-plugin-test run-lang-test
