@@ -71,19 +71,45 @@ static void check_and_rotate_log(void) {
     }
 }
 
-int log_init(log_level_t level, bool console_enabled) {
+// 函数声明提前，避免隐式声明问题
+bool log_set_output_file(const char* filepath);
+
+int log_init(const char* level_str, const char* log_file) {
     if (log_ctx.initialized) {
         // 已经初始化，忽略
         return 0;
     }
     
-    log_ctx.level = level;
-    log_ctx.console_enabled = console_enabled;
+    // 设置日志级别
+    if (level_str) {
+        // 从字符串解析日志级别
+        if (strcasecmp(level_str, "DEBUG") == 0) {
+            log_ctx.level = LOG_LEVEL_DEBUG;
+        } else if (strcasecmp(level_str, "INFO") == 0) {
+            log_ctx.level = LOG_LEVEL_INFO;
+        } else if (strcasecmp(level_str, "WARN") == 0) {
+            log_ctx.level = LOG_LEVEL_WARN;
+        } else if (strcasecmp(level_str, "ERROR") == 0) {
+            log_ctx.level = LOG_LEVEL_ERROR;
+        } else if (strcasecmp(level_str, "FATAL") == 0) {
+            log_ctx.level = LOG_LEVEL_FATAL;
+        }
+        // 如果无法识别，保持默认级别
+    }
     
     // 初始化互斥锁
     if (pthread_mutex_init(&log_ctx.lock, NULL) != 0) {
         fprintf(stderr, "Failed to initialize log mutex\n");
         return -1;
+    }
+    
+    // 如果提供了日志文件参数，设置日志文件
+    if (log_file && strlen(log_file) > 0) {
+        // 直接调用内部函数设置日志文件
+        if (!log_set_output_file(log_file)) {
+            fprintf(stderr, "Failed to set log file: %s\n", log_file);
+            // 不返回错误，仅警告
+        }
     }
     
     log_ctx.initialized = true;
@@ -131,9 +157,31 @@ bool log_set_output_file(const char* filepath) {
     return true;
 }
 
-void log_set_level(log_level_t level) {
+// 为兼容头文件定义的API提供别名
+void log_set_file(const char* filepath) {
+    // 简单调用实际的实现函数
+    log_set_output_file(filepath);
+}
+
+void log_set_level(const char* level) {
     pthread_mutex_lock(&log_ctx.lock);
-    log_ctx.level = level;
+    
+    // 从字符串解析日志级别
+    if (level) {
+        if (strcasecmp(level, "DEBUG") == 0) {
+            log_ctx.level = LOG_LEVEL_DEBUG;
+        } else if (strcasecmp(level, "INFO") == 0) {
+            log_ctx.level = LOG_LEVEL_INFO;
+        } else if (strcasecmp(level, "WARN") == 0) {
+            log_ctx.level = LOG_LEVEL_WARN;
+        } else if (strcasecmp(level, "ERROR") == 0) {
+            log_ctx.level = LOG_LEVEL_ERROR;
+        } else if (strcasecmp(level, "FATAL") == 0) {
+            log_ctx.level = LOG_LEVEL_FATAL;
+        }
+        // 如果无法识别，保持原有级别
+    }
+    
     pthread_mutex_unlock(&log_ctx.lock);
 }
 
@@ -275,8 +323,15 @@ void log_with_lang(log_level_t level, const char* module, const char* lang_key, 
     va_end(args);
 }
 
-log_level_t log_get_level(void) {
-    return log_ctx.level;
+// 为兼容头文件定义的API提供别名
+void log_set_console_enabled(int enabled) {
+    // 转换为布尔值后调用实际实现函数
+    log_set_output_console(enabled ? true : false);
+}
+
+// 修改log_get_level函数使其返回int类型，与头文件一致
+int log_get_level(void) {
+    return (int)log_ctx.level;
 }
 
 bool log_is_console_enabled(void) {

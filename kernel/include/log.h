@@ -1,8 +1,20 @@
-#ifndef LOGLOOM_LOG_H
-#define LOGLOOM_LOG_H
+#ifndef LOGLOOM_KERNEL_LOG_H
+#define LOGLOOM_KERNEL_LOG_H
 
+#ifdef __KERNEL__
+/* 内核环境 */
+#include <linux/types.h>
+#include <linux/string.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+typedef _Bool bool;
+#define true 1
+#define false 0
+#else
+/* 用户态环境 */
 #include <stdbool.h>
 #include <stddef.h>
+#endif
 
 // 日志级别定义
 typedef enum {
@@ -12,15 +24,6 @@ typedef enum {
     LOG_LEVEL_ERROR = 3,
     LOG_LEVEL_FATAL = 4
 } log_level_t;
-
-// 日志条目结构
-typedef struct {
-    unsigned long timestamp;  // Unix 时间戳
-    log_level_t level;        // 日志级别
-    const char* module;       // 模块名称
-    const char* message;      // 日志消息
-    const char* lang_key;     // 对应的语言键（可选）
-} log_entry_t;
 
 /**
  * 初始化日志系统
@@ -33,7 +36,6 @@ int log_init(const char* level, const char* log_file);
 /**
  * 设置日志输出文件
  * @param filepath 日志文件路径，NULL表示禁用文件输出
- * @return 成功返回true，失败返回false
  */
 void log_set_file(const char* filepath);
 
@@ -70,28 +72,22 @@ const char* log_get_level_string(void);
 void log_set_console_enabled(int enabled);
 
 /**
- * 设置最大日志文件大小（超过后自动轮转）
- * @param max_bytes 最大字节数
+ * 设置日志文件最大大小
+ * @param max_size 日志文件最大大小（字节）
  */
-void log_set_max_file_size(size_t max_bytes);
+void log_set_max_file_size(size_t max_size);
 
 /**
- * 设置最大历史日志文件数量
- * @param count 最大历史文件数量
+ * 获取日志锁
+ * 多线程环境下使用，确保日志操作的原子性
  */
-void log_set_max_backup_files(size_t count);
+void log_lock(void);
 
 /**
- * 获取最大历史日志文件数量
- * @return 最大历史文件数量
+ * 释放日志锁
+ * 与log_lock配对使用
  */
-size_t log_get_max_backup_files(void);
-
-/**
- * 手动触发日志文件轮转
- * @return 成功返回true，失败返回false
- */
-bool log_rotate_now(void);
+void log_unlock(void);
 
 /**
  * 调试级别日志
@@ -134,51 +130,33 @@ void log_error(const char* module, const char* format, ...);
 void log_fatal(const char* module, const char* format, ...);
 
 /**
- * 使用语言键输出日志（支持国际化）
- * @param level 日志级别
- * @param module 模块名称
- * @param lang_key 语言键
- * @param ... 格式化参数
- */
-void log_with_lang(log_level_t level, const char* module, const char* lang_key, ...);
-
-/**
  * 获取当前日志级别
  * @return 当前日志级别
  */
 int log_get_level(void);
 
 /**
- * 检查控制台输出是否启用
- * @return 如果启用返回true
+ * 检查当前级别是否应该记录日志
+ * @param level 要检查的日志级别
+ * @return 如果需要记录返回非零，否则返回0
  */
-bool log_is_console_enabled(void);
+int log_should_log(int level);
 
 /**
- * 获取当前日志文件路径
- * @return 日志文件路径，如果未设置则返回NULL
+ * 格式化日志消息
+ * @param buffer 输出缓冲区
+ * @param buffer_size 缓冲区大小
+ * @param level 日志级别
+ * @param module 模块名称
+ * @param format 格式字符串
+ * @param args 可变参数列表
  */
-const char* log_get_file_path(void);
-
-/**
- * 获取最大日志文件大小
- * @return 最大日志文件大小（字节）
- */
-size_t log_get_max_file_size(void);
+void log_format_message(char* buffer, size_t buffer_size, int level, 
+                        const char* module, const char* format, va_list args);
 
 /**
  * 清理日志系统资源
  */
 void log_cleanup(void);
 
-/**
- * 显式加锁日志系统（用于连续多条日志或事务）
- */
-void log_lock(void);
-
-/**
- * 解锁日志系统
- */
-void log_unlock(void);
-
-#endif // LOGLOOM_LOG_H
+#endif /* LOGLOOM_KERNEL_LOG_H */

@@ -1,8 +1,11 @@
 # Logloom Makefile
 
 CC = gcc
-CFLAGS = -Wall -Werror -g -I./include 
-LDFLAGS = -ldl  # For plugin loading
+CFLAGS = -Wall -Werror -g -I./include -fPIC
+LDFLAGS = -ldl -pthread  # For plugin loading and threading
+
+# 编译目标
+.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test
 
 # Directories
 SRC_DIR = src
@@ -10,24 +13,23 @@ BUILD_DIR = build
 INCLUDE_DIR = include
 TEST_DIR = tests
 LANG_DIR = locales
+KERNEL_DIR = kernel
+CORE_DIR = $(SRC_DIR)/core
+USERSPACE_DIR = $(SRC_DIR)/userspace
 
 # Source files
-LANG_SRC = $(wildcard $(SRC_DIR)/lang/*.c)
-CONFIG_SRC = $(wildcard $(SRC_DIR)/config/*.c)
-LOG_SRC = $(wildcard $(SRC_DIR)/log/*.c)
-PLUGIN_SRC = $(wildcard $(SRC_DIR)/plugin/*.c)
+CORE_SRC = $(wildcard $(CORE_DIR)/*.c)
+USERSPACE_SRC = $(wildcard $(USERSPACE_DIR)/*.c)
 
 # Object files
-LANG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LANG_SRC))
-CONFIG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(CONFIG_SRC))
-LOG_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(LOG_SRC))
-PLUGIN_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(PLUGIN_SRC))
+CORE_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(CORE_SRC))
+USERSPACE_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(USERSPACE_SRC))
 
-# Main targets
-all: dirs lang_headers config_headers liblogloom.a demo
+# 默认目标 - 构建用户空间库
+all: dirs lang_headers config_headers userspace demo
 
 dirs:
-	mkdir -p $(BUILD_DIR)/lang $(BUILD_DIR)/config $(BUILD_DIR)/log $(BUILD_DIR)/plugin $(INCLUDE_DIR)/generated
+	mkdir -p $(BUILD_DIR)/core $(BUILD_DIR)/userspace $(INCLUDE_DIR)/generated
 
 # Language headers generation
 lang_headers:
@@ -37,13 +39,29 @@ lang_headers:
 config_headers:
 	./tools/gen_config_header.py config.yaml $(INCLUDE_DIR)/generated/config_gen.h
 
-# Static library
-liblogloom.a: $(LANG_OBJ) $(CONFIG_OBJ) $(LOG_OBJ) $(PLUGIN_OBJ)
-	ar rcs $@ $^
+# 用户态静态库
+userspace: $(CORE_OBJ) $(USERSPACE_OBJ)
+	ar rcs liblogloom.a $^
+
+# 内核模块
+kernel: dirs lang_headers config_headers
+	cd $(KERNEL_DIR) && ./build.sh build
+
+# 内核模块测试
+kernel-test: kernel
+	cd $(KERNEL_DIR)/tests && $(MAKE)
+
+# 运行内核模块测试
+test-kernel: kernel-test
+	cd $(KERNEL_DIR)/tests && ./test_runner.sh --all
 
 # Demo application
 demo: $(BUILD_DIR)/demo.o liblogloom.a
 	$(CC) -o $@ $^ $(LDFLAGS)
+
+# Python bindings
+python: userspace
+	cd $(SRC_DIR)/bindings/python && python setup.py build
 
 # Test target
 test: dirs lang_headers config_headers
@@ -58,5 +76,14 @@ $(BUILD_DIR)/demo.o: demo.c
 
 clean:
 	rm -rf $(BUILD_DIR) liblogloom.a demo include/generated
+	cd $(KERNEL_DIR) && ./build.sh clean
+	cd $(KERNEL_DIR)/tests && $(MAKE) clean
 
-.PHONY: all clean test dirs lang_headers config_headers
+clean-all: clean
+	find . -name "*.o" -delete
+	find . -name "*.ko" -delete
+	find . -name "*.mod" -delete
+	find . -name "*.cmd" -delete
+	find . -name "modules.order" -delete
+	find . -name "Module.symvers" -delete
+	rm -rf $(SRC_DIR)/bindings/python/build

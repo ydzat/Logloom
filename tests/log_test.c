@@ -27,7 +27,7 @@ void test_log_filtering() {
     
     // 设置日志级别为WARNING，应该只显示WARN和ERROR
     printf("Setting log level to WARN, only WARN and ERROR should appear:\n");
-    log_set_level(LOG_LEVEL_WARN);
+    log_set_level("WARN");
     
     log_debug(TEST_MODULE, "This debug message should NOT appear");
     log_info(TEST_MODULE, "This info message should NOT appear");
@@ -35,7 +35,7 @@ void test_log_filtering() {
     log_error(TEST_MODULE, "This error message should appear");
     
     // 恢复为INFO级别
-    log_set_level(LOG_LEVEL_INFO);
+    log_set_level("INFO");
     printf("Reset to INFO level\n\n");
 }
 
@@ -62,12 +62,12 @@ void test_console_disable() {
     printf("Testing console output disable...\n");
     printf("Next logs will NOT appear on console but WILL be in file:\n");
     
-    log_set_output_console(false);
+    log_set_console_enabled(0);  // 0表示禁用
     log_info(TEST_MODULE, "This should only go to file, not console");
     log_error(TEST_MODULE, "This error also should only go to file");
     
     // 重新启用控制台输出
-    log_set_output_console(true);
+    log_set_console_enabled(1);  // 1表示启用
     printf("Console output re-enabled\n\n");
 }
 
@@ -78,18 +78,16 @@ int main() {
         return 1;
     }
     
-    // 初始化日志系统
-    if (log_init(LOG_LEVEL_INFO, true) != 0) {
+    // 初始化日志系统，使用正确的字符串参数
+    if (log_init("INFO", NULL) != 0) {
         fprintf(stderr, "Failed to initialize logging system\n");
         return 1;
     }
     
     // 设置日志输出文件
     printf("Setting log file to: %s\n", LOG_TEST_FILE);
-    if (!log_set_output_file(LOG_TEST_FILE)) {
-        fprintf(stderr, "Failed to set log file\n");
-        return 1;
-    }
+    log_set_file(LOG_TEST_FILE);
+    // 不需要检查返回值，因为log_set_file返回void
     
     // 设置小文件大小，便于测试轮转
     log_set_max_file_size(1024); // 1KB，便于测试轮转

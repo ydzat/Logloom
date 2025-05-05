@@ -1,8 +1,19 @@
-#ifndef LOGLOOM_LANG_H
-#define LOGLOOM_LANG_H
+#ifndef LOGLOOM_KERNEL_LANG_H
+#define LOGLOOM_KERNEL_LANG_H
 
-#include <stdarg.h>  // 用于变参函数
-#include <stdbool.h> // 用于布尔类型
+#ifdef __KERNEL__
+/* 内核环境 */
+#include <linux/types.h>
+#include <linux/string.h>
+#include <linux/kernel.h>
+typedef _Bool bool;
+#define true 1
+#define false 0
+#else
+/* 用户态环境 */
+#include <stdbool.h>
+#include <stdarg.h>
+#endif
 
 /**
  * 语言表项结构
@@ -37,7 +48,7 @@ const char* lang_get(const char* key);
  * 获取格式化后的文本，类似printf
  * @param key 语言键
  * @param ... 格式化参数
- * @return 动态分配的格式化后字符串，使用后需调用 free() 释放
+ * @return 动态分配的格式化后字符串，使用后需调用释放
  */
 char* lang_getf(const char* key, ...);
 
@@ -45,11 +56,25 @@ char* lang_getf(const char* key, ...);
  * 获取当前语言代码
  * @return 当前语言代码字符串
  */
-const char* lang_get_current();
+const char* lang_get_current(void);
 
 /**
  * 清理语言模块资源
  */
-void lang_cleanup();
+void lang_cleanup(void);
 
-#endif // LOGLOOM_LANG_H
+/**
+ * 在语言表中查找指定键的值
+ * @param table 语言表
+ * @param key 查找的键
+ * @return 找到的值，未找到则返回NULL
+ */
+const char* lang_find_in_table(const lang_entry_t* table, const char* key);
+
+/**
+ * 获取默认语言代码
+ * @return 默认语言代码字符串
+ */
+const char* lang_get_default_code(void);
+
+#endif /* LOGLOOM_KERNEL_LANG_H */

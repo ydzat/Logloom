@@ -281,6 +281,411 @@ plugins:
 
 ---
 
+### 5.5 Python插件系统详细设计（Python Plugin System Design）
+
+Python插件系统是Logloom的核心扩展机制之一，允许用户使用Python编写插件，无需编译即可扩展系统功能。本节详细说明Python插件的设计、加载机制、通信协议、资源管理和安全策略。
+
+#### 5.5.1 Python插件架构
+
+Python插件系统由以下组件组成：
+
+1. **Python解释器接口**：负责初始化、管理和与Python解释器交互
+   - 嵌入式模式：使用C API嵌入Python解释器到Logloom进程
+   - 子进程模式：独立Python进程，通过管道或套接字通信
+
+2. **插件发现与加载器**：扫描指定目录，加载符合规范的Python脚本
+   - 支持热加载、重载和卸载
+   - 自动处理依赖关系
+
+3. **类型转换与桥接层**：在C/C++与Python之间转换数据结构
+   - 日志项转换为Python字典
+   - 异常转换与处理
+
+4. **生命周期管理器**：控制Python插件的初始化、执行和销毁
+   - 启动时加载
+   - 按需执行
+   - 优雅关闭
+
+#### 5.5.2 Python插件标准接口
+
+每个Python插件必须实现以下标准接口：
+
+```python
+"""Logloom插件模板"""
+# 插件元信息
+PLUGIN_INFO = {
+    "name": "example_python_plugin",
+    "version": "1.0.0",
+    "type": "filter",  # 可选值: filter, sink, ai, lang
+    "capability": ["text", "json"],
+    "author": "Logloom Team",
+    "description": "示例Python插件"
+}
+
+def plugin_init():
+    """初始化插件，设置必要资源"""
+    # 返回0表示成功，非0表示失败
+    return 0
+
+def plugin_process(entry):
+    """处理日志条目
+    
+    参数:
+        entry: dict - 日志条目字典
+        
+    返回:
+        处理结果，取决于插件类型:
+        - filter: bool（是否保留日志）
+        - sink: int（成功为0，失败为错误码）
+        - ai: dict（分析结果）
+        - lang: str（翻译结果）
+    """
+    # 示例：过滤掉DEBUG级别的日志
+    if entry.get('level') == 'DEBUG':
+        return False
+    return True
+
+def plugin_shutdown():
+    """清理插件资源"""
+    # 释放所有资源
+    pass
+```
+
+#### 5.5.3 Python插件加载与生命周期
+
+Python插件的完整生命周期如下：
+
+1. **发现阶段**:
+   - 扫描`plugins/python/`目录下的所有`.py`文件
+   - 读取每个文件的`PLUGIN_INFO`字典验证合法性
+   - 将有效插件添加到注册表
+
+2. **初始化阶段**:
+   - 导入Python模块
+   - 调用`plugin_init()`
+   - 检查返回值确认初始化成功
+
+3. **执行阶段**:
+   - 根据插件类型，在适当时机调用`plugin_process()`
+   - 对调用结果进行验证和类型转换
+   - 在子进程模式下使用JSON序列化消息传递
+
+4. **卸载阶段**:
+   - 调用`plugin_shutdown()`
+   - 清理Python对象引用
+   - 释放解释器资源（嵌入式模式）或终止子进程
+
+#### 5.5.4 通信模式与数据交换
+
+##### 嵌入式模式
+
+```c
+// C库中的嵌入式Python插件调用示例
+PyObject *pModule, *pFunc, *pArgs, *pValue;
+// ...初始化Python解释器...
+
+// 构造日志条目字典
+PyObject *py_entry = PyDict_New();
+PyDict_SetItemString(py_entry, "level", PyUnicode_FromString(entry->level));
+PyDict_SetItemString(py_entry, "message", PyUnicode_FromString(entry->message));
+
+// 调用插件处理函数
+pFunc = PyObject_GetAttrString(pModule, "plugin_process");
+pArgs = PyTuple_Pack(1, py_entry);
+pValue = PyObject_CallObject(pFunc, pArgs);
+
+// 处理返回值
+if (PyBool_Check(pValue)) {
+    return PyObject_IsTrue(pValue) ? 1 : 0;
+}
+```
+
+##### 子进程模式
+
+```python
+# 子进程模式中的通信协议（伪代码）
+def plugin_subprocess_main():
+    while True:
+        # 从stdin读取JSON数据
+        input_line = sys.stdin.readline().strip()
+        if not input_line:
+            break
+            
+        try:
+            # 解析输入
+            request = json.loads(input_line)
+            entry = request.get("entry", {})
+            
+            # 处理日志
+            result = plugin_process(entry)
+            
+            # 返回结果
+            response = {"status": 0, "result": result}
+            sys.stdout.write(json.dumps(response) + "\n")
+            sys.stdout.flush()
+        except Exception as e:
+            # 错误处理
+            error_response = {"status": 1, "error": str(e)}
+            sys.stdout.write(json.dumps(error_response) + "\n")
+            sys.stdout.flush()
+```
+
+#### 5.5.5 资源管理与性能优化
+
+1. **缓存机制**:
+   - 保持Python解释器实例长期运行（嵌入式模式）
+   - 批处理多个日志条目减少进程切换开销（子进程模式）
+   - 预编译频繁执行的Python函数
+
+2. **内存管理**:
+   - 定期调用`Py_DecRef`和垃圾回收防止内存泄漏
+   - 限制Python堆内存使用（通过`sys.setrecursionlimit`和资源限制）
+
+3. **性能监控**:
+   - 记录每个插件的执行时间和资源消耗
+   - 对超时或高资源消耗插件发出警告
+
+#### 5.5.6 安全与沙箱机制
+
+为确保Python插件不影响系统安全性和稳定性，实现以下安全措施：
+
+1. **权限控制**:
+   - 使用`RestrictedPython`或类似库限制Python代码访问系统资源
+   - 移除危险模块(`os.system`, `subprocess`, `socket`等)
+   - 限制文件系统访问范围
+
+2. **资源限制**:
+   - 设置执行超时（默认500ms）
+   - 内存使用上限（默认100MB）
+   - CPU时间限制
+
+3. **沙箱执行**:
+   - 子进程模式下使用低权限用户执行
+   - 可选容器化运行环境（Docker或系统容器）
+
+4. **代码审查**:
+   - 插件可选静态分析检测潜在风险
+   - 自动检测无限循环、阻塞I/O等问题
+
+#### 5.5.7 Python插件注册与配置
+
+Python插件使用YAML配置启用和配置，集成到Logloom主配置中：
+
+```yaml
+# config.yaml - Python插件配置示例
+plugins:
+  python:
+    enabled: true
+    mode: "subprocess"  # 'embedded'或'subprocess'
+    path: "plugins/python"
+    enabled_plugins:
+      - "log_filter_severity"
+      - "log_ai_summary"
+    timeout: 500  # 毫秒
+    max_memory: 100  # MB
+    sandbox: true
+```
+
+每个Python插件可以有自己的配置文件：
+```yaml
+# plugins/python/log_ai_summary.yaml
+model: "local-llm"
+batch_size: 100
+summary_interval: 3600  # 每小时生成一次摘要
+```
+
+#### 5.5.8 Python插件开发工具链
+
+为方便用户开发Python插件，提供以下工具和资源：
+
+1. **插件模板生成器**:
+   ```bash
+   logloom-cli create-plugin --type python --name "my_plugin"
+   ```
+
+2. **插件开发环境**:
+   - 提供虚拟环境设置脚本
+   - 包含类型提示和接口定义
+
+3. **调试工具**:
+   - 独立测试工具模拟Logloom环境
+   - 日志记录和性能分析功能
+
+4. **文档与示例**:
+   - 常见插件模式库
+   - 最佳实践文档
+
+#### 5.5.9 实现示例
+
+##### 日志过滤器插件示例
+
+```python
+# plugins/python/log_filter_severity.py
+"""基于严重性过滤日志的插件"""
+
+PLUGIN_INFO = {
+    "name": "log_filter_severity",
+    "version": "1.0.0",
+    "type": "filter",
+    "capability": ["text"],
+    "author": "Logloom Team",
+    "description": "根据日志级别过滤日志条目"
+}
+
+# 插件配置：默认过滤掉DEBUG级别的日志
+config = {
+    "min_level": "INFO"  # 可选值: DEBUG, INFO, WARN, ERROR, FATAL
+}
+
+# 日志级别映射到数值
+LEVEL_MAP = {
+    "DEBUG": 0,
+    "INFO": 1,
+    "WARN": 2,
+    "ERROR": 3,
+    "FATAL": 4
+}
+
+def plugin_init():
+    """初始化插件"""
+    # 这里可以加载自定义配置文件
+    return 0
+
+def plugin_process(entry):
+    """
+    根据配置的最低日志级别过滤日志
+    返回True表示保留日志，False表示过滤掉
+    """
+    entry_level = entry.get("level", "INFO")
+    min_level = config.get("min_level", "INFO")
+    
+    # 将级别转换为数值进行比较
+    entry_level_value = LEVEL_MAP.get(entry_level, 1)
+    min_level_value = LEVEL_MAP.get(min_level, 1)
+    
+    # 只保留级别大于等于最低级别的日志
+    return entry_level_value >= min_level_value
+
+def plugin_shutdown():
+    """清理资源"""
+    pass
+```
+
+##### AI分析插件示例
+
+```python
+# plugins/python/log_ai_summary.py
+"""日志AI摘要插件"""
+
+PLUGIN_INFO = {
+    "name": "log_ai_summary",
+    "version": "1.0.0",
+    "type": "ai",
+    "capability": ["json", "batch"],
+    "author": "Logloom Team",
+    "description": "使用AI分析日志并生成摘要"
+}
+
+import json
+import time
+from collections import deque
+
+# 保存最近的日志
+log_buffer = deque(maxlen=1000)
+last_summary_time = 0
+summary_interval = 3600  # 默认每小时生成一次摘要
+
+def plugin_init():
+    """初始化插件，加载AI模型"""
+    global summary_interval
+    
+    try:
+        # 尝试加载配置
+        with open("plugins/python/log_ai_summary.yaml", "r") as f:
+            import yaml
+            config = yaml.safe_load(f)
+            if "summary_interval" in config:
+                summary_interval = config["summary_interval"]
+                
+        # 初始化AI模型（示例）
+        # model = load_ai_model()
+        return 0
+    except Exception as e:
+        print(f"初始化AI摘要插件失败: {e}")
+        return 1
+
+def plugin_process(entry):
+    """处理日志条目，定期生成摘要"""
+    global log_buffer, last_summary_time
+    
+    # 将日志加入缓冲区
+    log_buffer.append(entry)
+    
+    current_time = time.time()
+    # 检查是否应该生成摘要
+    if current_time - last_summary_time >= summary_interval and len(log_buffer) > 0:
+        return generate_summary(list(log_buffer))
+    
+    # 返回空结果表示暂不生成摘要
+    return {"summary": None}
+
+def generate_summary(logs):
+    """生成日志摘要"""
+    # 实际实现中，这里会调用LLM或其他AI模型
+    # 简化示例：统计不同级别的日志数量
+    level_counts = {}
+    for log in logs:
+        level = log.get("level", "INFO")
+        level_counts[level] = level_counts.get(level, 0) + 1
+    
+    # 检测异常模式
+    error_count = level_counts.get("ERROR", 0) + level_counts.get("FATAL", 0)
+    has_errors = error_count > 0
+    
+    # 更新最后摘要时间
+    global last_summary_time
+    last_summary_time = time.time()
+    
+    # 返回摘要
+    return {
+        "summary": f"过去{summary_interval//60}分钟内共记录{len(logs)}条日志",
+        "statistics": level_counts,
+        "has_errors": has_errors,
+        "error_count": error_count,
+        "timestamp": last_summary_time
+    }
+
+def plugin_shutdown():
+    """清理资源"""
+    global log_buffer
+    log_buffer.clear()
+    # 释放AI模型资源
+    # unload_ai_model()
+    pass
+```
+
+#### 5.5.10 Python插件系统与现有C插件系统的互操作
+
+Python插件系统与现有C插件系统完全兼容，并可进行互操作：
+
+1. **链式处理**:
+   - Python插件可与C插件组成处理链
+   - 定义明确的执行顺序，例如`filter_c → filter_python → sink_c`
+
+2. **混合模式集成**:
+   - Python插件可调用C插件（通过Python绑定）
+   - C插件可触发Python回调（嵌入式模式）
+
+3. **数据格式兼容**:
+   - 保持日志条目结构一致性
+   - 统一错误码和状态报告
+
+4. **资源协调**:
+   - 统一的插件管理接口
+   - 共享配置系统
+
+---
+
 ## 6. 扩展场景示例（Examples of Extensibility）
 
 以下展示几种典型插件的实现与接入方式，用于说明 Logloom 插件机制的可行性与灵活性。
@@ -459,4 +864,290 @@ int plugin_process(const log_entry_t* entry) {
 
   * `plugin.yaml` 描述插件元信息与入口点
   * 自动发布测试容器镜像 / `.so` 文件
+
+---
+
+## 9. Python插件开发与部署指南（Python Plugin Development Guide）
+
+为了便于开发者快速上手Python插件开发，本节提供了完整的开发流程、最佳实践和部署指南。
+
+### 9.1 Python插件开发环境设置
+
+开发Python插件前，建议按以下步骤设置开发环境：
+
+1. **安装依赖**:
+   ```bash
+   # 创建虚拟环境
+   python -m venv logloom-plugin-env
+   source logloom-plugin-env/bin/activate
+   
+   # 安装开发依赖
+   pip install pyyaml pytest mock
+   ```
+
+2. **获取接口定义**:
+   ```bash
+   # 克隆或下载Logloom插件开发包
+   git clone https://github.com/logloom/plugin-sdk.git
+   cd plugin-sdk/python
+   pip install -e .
+   ```
+
+3. **使用插件模板**:
+   ```bash
+   # 生成插件模板
+   logloom-plugin-sdk create --type filter --name "my_custom_filter"
+   ```
+
+### 9.2 Python插件结构与规范
+
+一个完整的Python插件项目应包含以下文件：
+
+```
+my_plugin/
+│
+├── __init__.py          # 主插件代码
+├── plugin.yaml          # 插件配置
+├── requirements.txt     # 依赖项
+├── README.md            # 文档
+└── tests/               # 测试代码
+    └── test_plugin.py
+```
+
+#### 插件包命名约定
+
+- 不同类型的插件应使用特定前缀：
+  - `filter_*` - 过滤器插件
+  - `sink_*` - 输出插件
+  - `ai_*` - AI分析插件
+  - `lang_*` - 多语言插件
+
+#### 版本控制规范
+
+使用语义化版本控制（SemVer）：
+- MAJOR.MINOR.PATCH
+- 主要版本号变化表示不兼容的API变更
+- 次要版本号变化表示向后兼容的功能性新增
+- 修订号变化表示向后兼容的问题修正
+
+### 9.3 Python插件测试
+
+#### 单元测试
+
+```python
+# tests/test_filter_plugin.py
+import unittest
+import sys
+from unittest import mock
+
+# 导入插件模块
+sys.path.insert(0, '..')
+import my_custom_filter
+
+class TestMyCustomFilter(unittest.TestCase):
+    
+    def setUp(self):
+        # 初始化插件
+        my_custom_filter.plugin_init()
+    
+    def tearDown(self):
+        # 清理资源
+        my_custom_filter.plugin_shutdown()
+    
+    def test_filter_debug_logs(self):
+        # 准备测试数据
+        debug_log = {"level": "DEBUG", "message": "Debug message"}
+        info_log = {"level": "INFO", "message": "Info message"}
+        
+        # 验证过滤器行为
+        self.assertFalse(my_custom_filter.plugin_process(debug_log))
+        self.assertTrue(my_custom_filter.plugin_process(info_log))
+    
+    def test_plugin_info(self):
+        # 验证插件元信息
+        self.assertIn("name", my_custom_filter.PLUGIN_INFO)
+        self.assertIn("version", my_custom_filter.PLUGIN_INFO)
+        self.assertEqual("filter", my_custom_filter.PLUGIN_INFO["type"])
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+#### 集成测试
+
+```python
+# tests/test_integration.py
+import unittest
+import subprocess
+import json
+import os
+
+class TestPluginIntegration(unittest.TestCase):
+    
+    def test_subprocess_mode(self):
+        """测试子进程模式下的插件响应"""
+        test_log = {"level": "INFO", "message": "Test message"}
+        
+        # 启动插件子进程
+        proc = subprocess.Popen(
+            ['python', '../my_custom_filter.py'],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        
+        # 发送测试数据
+        proc.stdin.write(json.dumps({"entry": test_log}) + "\n")
+        proc.stdin.flush()
+        
+        # 读取响应
+        response = proc.stdout.readline()
+        result = json.loads(response)
+        
+        # 验证结果
+        self.assertEqual(0, result.get("status"))
+        self.assertTrue(result.get("result"))
+        
+        # 清理
+        proc.terminate()
+        proc.wait()
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### 9.4 部署与分发指南
+
+#### 插件打包
+
+```bash
+# 创建Python wheel包
+pip install wheel
+python setup.py sdist bdist_wheel
+```
+
+#### 插件安装
+
+```bash
+# 全局安装
+pip install logloom-plugin-myfilter-1.0.0.whl
+
+# 或复制到Logloom插件目录
+cp -r my_custom_filter/ /usr/lib/logloom/plugins/python/
+```
+
+#### 容器化部署
+
+```dockerfile
+# Dockerfile - 插件容器
+FROM python:3.9-slim
+
+WORKDIR /plugin
+COPY . /plugin/
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENTRYPOINT ["python", "my_custom_filter.py"]
+```
+
+### 9.5 故障排查与调试
+
+#### 常见问题解决方案
+
+1. **插件未被加载**:
+   - 检查配置中是否启用了该插件
+   - 验证插件位置是否正确
+   - 检查`PLUGIN_INFO`字典是否完整
+
+2. **插件执行错误**:
+   - 启用日志调试模式: `LOG_LEVEL=DEBUG`
+   - 检查Python版本兼容性
+   - 验证所有依赖是否已安装
+
+#### 调试技巧
+
+1. **独立测试**:
+   ```bash
+   # 独立运行插件进行测试
+   echo '{"entry":{"level":"INFO","message":"test"}}' | python my_plugin.py
+   ```
+
+2. **使用日志**:
+   ```python
+   # 在插件中添加日志
+   import logging
+   logging.basicConfig(filename="plugin_debug.log", level=logging.DEBUG)
+   logging.debug("处理日志条目: %s", entry)
+   ```
+
+3. **检查内存使用**:
+   ```python
+   # 在插件中监控内存使用
+   import resource
+   def log_memory_usage():
+       usage = resource.getrusage(resource.RUSAGE_SELF)
+       return f"内存使用: {usage.ru_maxrss / 1024} MB"
+   ```
+
+### 9.6 最佳实践
+
+1. **性能优化**:
+   - 避免每次处理时导入重量级库
+   - 利用缓存减少重复计算
+   - 处理批量日志而不是单条处理
+
+2. **可靠性**:
+   - 捕获所有可能的异常
+   - 设置超时限制防止长时间运行
+   - 实现优雅的失败处理
+
+3. **兼容性**:
+   - 支持Python 3.6+
+   - 显式声明所有依赖
+   - 使用标准库优先，减少第三方依赖
+
+4. **可维护性**:
+   - 遵循PEP 8编码风格
+   - 添加完整的类型注解
+   - 编写详细文档
+
+---
+
+## 10. 插件生态系统与社区贡献（Plugin Ecosystem）
+
+### 10.1 官方与社区插件
+
+Logloom维护一个插件仓库，包含官方提供和社区贡献的插件。插件分类包括：
+
+- **官方核心插件**：由Logloom团队维护的基础功能插件
+- **官方扩展插件**：由Logloom团队维护的高级功能插件
+- **认证社区插件**：经过审核的高质量社区插件
+- **实验性插件**：新特性和实验性功能
+
+### 10.2 插件发布与共享
+
+社区成员可通过以下流程贡献插件：
+
+1. 使用标准模板开发插件
+2. 提供完整文档和测试
+3. 提交插件到Logloom插件仓库
+4. 通过审核后发布到插件目录
+
+### 10.3 插件版本管理与兼容性策略
+
+为确保系统稳定和插件生态健康，Logloom采用以下版本管理策略：
+
+- Logloom核心API使用语义化版本控制
+- 明确每个API的稳定性级别（稳定、测试中、实验性）
+- 废弃的API保持向后兼容至少一个主要版本周期
+- 插件声明支持的Logloom版本范围
+
+### 10.4 插件生态系统路线图
+
+Logloom计划逐步扩展插件生态系统的能力：
+
+- 插件市场：一键发现与安装插件
+- 插件评分与评论系统
+- 插件互操作性框架：允许插件之间协作
+- 插件健康监控：自动检测性能问题和兼容性
 

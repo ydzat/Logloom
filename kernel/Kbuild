@@ -1,0 +1,16 @@
+# Logloom Kernel Module Kbuild file
+
+# 指定模块名称
+obj-m += logloom.o
+
+# 组成模块的源文件
+logloom-objs := modules/logloom_main.o \
+                modules/config_kernel.o \
+                modules/lang_kernel.o \
+                modules/log_kernel.o \
+                ../src/core/config_core.o \
+                ../src/core/lang_core.o \
+                ../src/core/log_core.o
+
+# 头文件目录
+ccflags-y := -I$(src)/include -I$(src)/../include -I$(src)/../src

@@ -199,8 +199,8 @@ static void test_plugin_api(void) {
 // 主函数
 int main(int argc, char* argv[]) {
     // 初始化日志系统
-    log_init(LOG_LEVEL_DEBUG, true);
-    log_set_output_console(true);
+    log_init("DEBUG", NULL);
+    log_set_console_enabled(1);
     
     printf("Logloom插件系统测试开始...\n");
     

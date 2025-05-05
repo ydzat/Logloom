@@ -172,17 +172,15 @@ int main() {
     }
     
     // 初始化日志系统
-    if (log_init(LOG_LEVEL_INFO, true) != 0) {
+    if (log_init("INFO", NULL) != 0) {
         fprintf(stderr, "初始化日志系统失败\n");
         return 1;
     }
     
     // 设置日志输出文件
     printf("设置日志文件为: %s\n", LOG_TEST_FILE);
-    if (!log_set_output_file(LOG_TEST_FILE)) {
-        fprintf(stderr, "设置日志文件失败\n");
-        return 1;
-    }
+    log_set_file(LOG_TEST_FILE);
+    // 不需要检查返回值，因为log_set_file返回void
     
     printf("=== Logloom 日志轮转功能测试 ===\n\n");
     
