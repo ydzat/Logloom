@@ -135,3 +135,4 @@ void lang_cleanup() {
 EXPORT_SYMBOL(lang_get);
 EXPORT_SYMBOL(lang_getf);
 EXPORT_SYMBOL(lang_set_language);
+EXPORT_SYMBOL(lang_get_current);

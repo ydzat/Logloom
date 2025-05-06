@@ -118,6 +118,32 @@ static void test_lang_basic(void) {
     }
 }
 
+/* 测试配置系统功能 */
+static void test_config_basic(void) {
+    const char* config_value;
+    size_t int_value;
+    
+    // 测试字符串配置项
+    config_value = config_get_log_level();
+    ASSERT(config_value != NULL, "Get log level config value");
+    add_test_result("Config log.level: %s\n", config_value);
+    
+    // 测试路径配置项
+    config_value = config_get_log_file();
+    ASSERT(config_value != NULL, "Get log file path");
+    add_test_result("Config log.file: %s\n", config_value);
+    
+    // 测试整数配置项
+    int_value = config_get_max_log_size();
+    ASSERT(int_value > 0, "Get max log size value");
+    add_test_result("Config log.max_size: %zu\n", int_value);
+    
+    // 测试布尔配置项
+    int value = config_is_console_enabled();
+    ASSERT(value == 0 || value == 1, "Get console enabled value");
+    add_test_result("Config console_enabled: %d\n", value);
+}
+
 /* 测试环境设置和清理 */
 static int setup_tests(void) {
     // 设置日志输出到临时文件
@@ -146,6 +172,7 @@ static void run_all_tests(void) {
     
     test_log_basic();
     test_lang_basic();
+    test_config_basic();
     
     cleanup_tests();
     

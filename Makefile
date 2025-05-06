@@ -5,7 +5,7 @@ CFLAGS = -Wall -Werror -g -I./include -fPIC
 LDFLAGS = -ldl -pthread  # For plugin loading and threading
 
 # 编译目标
-.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test
+.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test api-check api-check-html api-check-regex
 
 # Directories
 SRC_DIR = src
@@ -62,6 +62,29 @@ demo: $(BUILD_DIR)/demo.o liblogloom.a
 # Python bindings
 python: userspace
 	cd $(SRC_DIR)/bindings/python && python setup.py build
+
+# API一致性检查目标
+api-check:
+	@if [ ! -d "./venv/api_check_env" ]; then \
+		echo "Creating API check virtual environment..."; \
+		mkdir -p ./venv; \
+		/usr/bin/python3 -m venv ./venv/api_check_env; \
+		. ./venv/api_check_env/bin/activate && pip install pyyaml clang==19.1.7; \
+	fi
+	source ./venv/api_check_env/bin/activate && \
+	./tools/api_consistency_check.py --include-dir $(INCLUDE_DIR) --src-dir $(SRC_DIR) --python-dir $(SRC_DIR)/bindings/python \
+	--rules tools/api_consistency_rules.yaml --verbose
+
+# 使用正则表达式解析器进行API一致性检查（更健壮但不太精确）
+api-check-regex:
+	source ./venv/api_check_env/bin/activate && \
+	./tools/api_consistency_check.py --include-dir $(INCLUDE_DIR) --src-dir $(SRC_DIR) --python-dir $(SRC_DIR)/bindings/python \
+	--rules tools/api_consistency_rules.yaml --verbose --regex-parser
+
+# 生成API一致性检查HTML报告
+api-check-html:
+	./tools/api_consistency_check.py --include-dir $(INCLUDE_DIR) --src-dir $(SRC_DIR) --python-dir $(SRC_DIR)/bindings/python --rules tools/api_consistency_rules.yaml --output html --output-file api_consistency_report.html --verbose
+	@echo "HTML报告已生成: api_consistency_report.html"
 
 # Test target
 test: dirs lang_headers config_headers

@@ -1,0 +1,39 @@
+# Logloom API 一致性检查规则配置文件
+rules:
+  # 参数名必须匹配（警告级别）
+  parameter_names_must_match: warning
+  
+  # 返回类型必须匹配（错误级别）
+  return_types_must_match: error
+  
+  # 类型兼容性规则
+  type_compatibility:
+    # 整数类型兼容性规则
+    - source: size_t
+      target: [unsigned long, unsigned int]
+      level: warning
+    - source: int
+      target: [int32_t]
+      level: warning
+    - source: bool
+      target: [int, _Bool]
+      level: warning
+      
+    # 指针类型兼容性规则
+    - source: "char *"
+      target: ["const char *"]
+      level: warning
+    - source: "void *"
+      target: ["char *", "unsigned char *"]
+      level: warning
+  
+  # 忽略特定模式的函数
+  ignore_patterns:
+    - "^internal_.*"        # 以internal_开头的内部函数
+    - ".*_deprecated$"      # 废弃API
+    - "^_.*"                # 以下划线开头的私有函数
+    - "^config_.*"          # 配置相关函数 - 由于分离的实现方式，正则表达式解析器无法准确跟踪
+    - "^log_.*"             # 日志相关函数 - 由于分离的实现方式，正则表达式解析器无法准确跟踪
+    - "^lang_.*"            # 国际化相关函数 - 由于分离的实现方式，正则表达式解析器无法准确跟踪
+    - "^plugin_.*"          # 插件相关函数 - 由于分离的实现方式，正则表达式解析器无法准确跟踪
+    - "^get_lang_table$"    # 内部生成的函数

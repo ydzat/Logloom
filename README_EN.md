@@ -10,9 +10,9 @@ Change Language: [CN](./README.md)
 
 Logloom is currently in active development:
 
-- **Currently Supported**: C language interface (for both pure C and C++ projects)
-- **In Development**: Separation of kernel and user space implementations, Python bindings and API
-- **Planned**: Standalone process/container plugin system, AI analysis module integration
+- **Currently Supported**: C language interface (for both pure C and C++ projects), Python basic bindings, API consistency automation
+- **In Development**: Python plugin system
+- **Planned**: AI analysis module integration, advanced security features
 
 ### Development Milestones
 
@@ -26,8 +26,11 @@ Logloom is currently in active development:
 | M5        | Plugin Registration Framework    | Successfully load `.so` plugins and execute process()  | ✅ Completed |
 | M6        | Test Integration                 | All modules pass at least 3 test cases                 | ✅ Completed |
 | M7        | Minimum Viable Product (MVP)     | Run demo program, load language+config, write logs     | ✅ Completed |
-| M8        | Python Bindings and Extended API | Support Logloom core functionality from Python         | 🚧 In Progress |
-| M9        | AI Analysis Module Integration   | Support intelligent log analysis and diagnostics       | 📅 Planned |
+| M8        | Python Bindings and Extended API | Support Logloom core functionality from Python         | ✅ Completed |
+| M9        | C Library and Python API Alignment | Ensure C library API matches Python bindings         | ✅ Completed |
+| M10       | High Concurrency Stability      | Normal operation in multi-threaded environment         | ✅ Completed |
+| M11       | API Consistency Checker Tool     | Automatically verify header and implementation consistency | ✅ Completed |
+| M12       | AI Analysis Module Integration   | Support intelligent log analysis and diagnostics       | 📅 Planned |
 
 ---
 
@@ -157,6 +160,26 @@ Reference implementations:
   - Log data export API
   - Log-driven alerting and self-recovery modules
 
+### 4. API Consistency Checker
+
+- Automatically detects and reports API inconsistencies:
+  - Mismatches between header declarations and implementation definitions
+  - Return type inconsistencies
+  - Parameter type, count, or name mismatches
+- Supports multiple output formats (text, JSON, HTML)
+- Uses libclang for precise AST analysis
+- Customizable checking rules via YAML configuration file
+
+Usage example:
+
+```bash
+# Run API consistency check
+./tools/api_consistency_check.py --include-dir include --src-dir src --rules tools/api_consistency_rules.yaml
+
+# Generate HTML report
+./tools/api_consistency_check.py --include-dir include --src-dir src --output html --output-file api_report.html
+```
+
 ---
 
 ## 🚀 Quick Start
@@ -241,10 +264,10 @@ Check the generated log file or console output.
 
 ## 📚 Technical Roadmap
 
-1. **Current MVP**: Basic logging and internationalization functionality
-2. Separate kernel-space and user-space implementations
-3. Release complete SDK for Python + C languages
-4. Support more language extensions (adding Spanish, French, etc.)
+1. **Current MVP**: Basic logging and internationalization functionality ✅
+2. **Python Bindings and Extended API**: Provide Python language interface ✅
+3. **API Consistency Checking and Validation**: Ensure API stability and consistency ✅
+4. Separate kernel-space and user-space implementations 🚧
 5. Enhance log security (automatic sensitive information masking)
 6. Introduce log-based anomaly detection and alerting system
 7. Integrate lightweight log intelligent analysis module

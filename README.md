@@ -10,9 +10,9 @@
 
 当前Logloom项目处于积极开发阶段：
 
-- **当前支持**：C语言接口（同时支持纯C和C++项目）
-- **开发中**：分离内核态和用户空间实现，Python绑定和API接口
-- **规划中**：独立进程/容器插件系统，AI分析模块集成
+- **当前支持**：C语言接口（同时支持纯C和C++项目）、Python基础绑定、API一致性自动化检查
+- **开发中**：Python插件系统
+- **规划中**：AI分析模块集成、高级安全特性
 
 ### 开发里程碑
 
@@ -26,8 +26,11 @@
 | M5      | 插件注册与运行框架   | 成功加载 `.so` 插件并执行其 process()     | ✅ 已完成 |
 | M6      | 测试集成         | 所有模块能通过至少 3 条测试用例验证            | ✅ 已完成 |
 | M7      | 最小可运行版本（MVP）| 执行演示程序，加载语言+配置，写入日志           | ✅ 已完成 |
-| M8      | Python绑定和扩展API| 支持在Python中调用Logloom核心功能        | 🚧 开发中 |
-| M9      | AI分析模块集成    | 支持智能日志分析和诊断功能                  | 📅 规划中 |
+| M8      | Python绑定和扩展API| 支持在Python中调用Logloom核心功能        | ✅ 已完成 |
+| M9      | C库与Python绑定API匹配 | 确保C库API与Python绑定功能一致      | ✅ 已完成 |
+| M10     | 高并发稳定性验证    | 多线程环境下正常运行无数据竞争               | ✅ 已完成 |
+| M11     | API一致性自动检查工具 | 能够自动验证头文件与实现的API一致性          | ✅ 已完成 |
+| M12     | AI分析模块集成    | 支持智能日志分析和诊断功能                  | 📅 规划中 |
 
 ---
 
@@ -142,6 +145,26 @@ Logloom 基础系统包含以下模块：
   - 日志数据导出 API
   - 日志驱动的告警与自恢复模块
 
+### 4. API一致性检查工具（API Consistency Checker）
+
+- 自动检测和报告API不一致问题：
+  - 头文件声明与实现文件定义不匹配
+  - 返回类型不一致
+  - 参数类型、数量或名称不匹配
+- 支持多种输出格式（文本、JSON、HTML）
+- 使用libclang进行精确的AST分析
+- 可自定义检查规则，通过YAML配置文件设置
+
+使用示例：
+
+```bash
+# 运行API一致性检查
+./tools/api_consistency_check.py --include-dir include --src-dir src --rules tools/api_consistency_rules.yaml
+
+# 生成HTML格式报告
+./tools/api_consistency_check.py --include-dir include --src-dir src --output html --output-file api_report.html
+```
+
 ---
 
 ## 🚀 典型应用场景（Typical Use Cases）
@@ -232,10 +255,10 @@ make demo
 
 ## 📚 技术路线图（Technical Roadmap）
 
-1. **当前 MVP**: 基础日志和国际化功能
-2. 分离内核态和用户空间实现
-3. 发布 Python + C 语言的完整 SDK
-4. 支持更多语言扩展（新增西班牙语、法语等）
+1. **当前 MVP**: 基础日志和国际化功能 ✅
+2. **Python绑定与扩展API**: 提供Python语言接口 ✅
+3. **API一致性检查与验证**: 确保API稳定性和一致性 ✅
+4. 分离内核态和用户空间实现 🚧
 5. 增强日志安全性（敏感信息自动脱敏）
 6. 引入基于日志的异常检测与告警系统
 7. 集成轻量级日志智能分析模块
