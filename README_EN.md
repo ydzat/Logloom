@@ -10,9 +10,9 @@ Change Language: [CN](./README.md)
 
 Logloom is currently in active development:
 
-- **Currently Supported**: C language interface (for both pure C and C++ projects), Python basic bindings, API consistency automation
-- **In Development**: Python plugin system
-- **Planned**: AI analysis module integration, advanced security features
+- **Currently Supported**: C language interface (for both pure C and C++ projects), Python basic bindings, API consistency automation, Python plugin system
+- **In Development**: AI analysis module integration
+- **Planned**: Advanced security features
 
 ### Development Milestones
 
@@ -30,7 +30,7 @@ Logloom is currently in active development:
 | M9        | C Library and Python API Alignment | Ensure C library API matches Python bindings         | ✅ Completed |
 | M10       | High Concurrency Stability      | Normal operation in multi-threaded environment         | ✅ Completed |
 | M11       | API Consistency Checker Tool     | Automatically verify header and implementation consistency | ✅ Completed |
-| M12       | Python Plugin System Implementation | Feature parity with C plugin system & plugin discovery | 🔄 In Progress |
+| M12       | Python Plugin System Implementation | Feature parity with C plugin system & plugin discovery | ✅ Completed |
 | M13       | AI Analysis Module Integration   | Support intelligent log analysis and diagnostics       | 📅 Planned |
 
 ---
