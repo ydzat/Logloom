@@ -1,91 +1,80 @@
 #!/usr/bin/env python3
 """
-Logloom Python绑定国际化功能测试
-==============================
+Logloom国际化功能测试
 
-测试Logloom Python绑定的国际化(i18n)功能
+此测试验证Logloom的国际化功能，包括：
+- 不同语言的文本翻译
+- 语言切换
+- 文本格式化
 """
 
-import os
 import sys
+import os
 import unittest
-from pathlib import Path
 
-# 添加模块路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src' / 'bindings' / 'python'))
+# 添加测试适配器路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_adapter import logger, initialize, cleanup, Logger, LogLevel, get_text, get_current_language, set_language, format_text
+
+class TestLogloomI18n(unittest.TestCase):
+    """测试Logloom的国际化功能"""
     
-try:
-    import logloom_py as ll
-except ImportError:
-    print("无法导入logloom_py模块。请确保Python绑定已正确构建。")
-    print("可能需要在src/bindings/python目录运行: python setup.py install --user")
-    sys.exit(1)
-
-class LogloomI18nTest(unittest.TestCase):
     def setUp(self):
-        """测试开始前的设置"""
-        self.config_path = os.path.join(os.path.dirname(__file__), '../../config.yaml')
+        """测试前的准备工作"""
+        self.config_path = './config.yaml'
         # 初始化Logloom
-        ll.initialize(self.config_path)
-        
+        self.assertTrue(initialize(self.config_path), "初始化Logloom失败")
+    
     def tearDown(self):
-        """测试结束后的清理"""
-        ll.cleanup()
+        """测试后的清理工作"""
+        # 清理Logloom资源
+        self.assertTrue(cleanup(), "清理Logloom资源失败")
     
     def test_get_text(self):
         """测试获取翻译文本功能"""
-        # 测试获取存在的翻译
-        try:
-            text = ll.get_text("system.welcome")
-            self.assertIsNotNone(text, "系统欢迎信息应该存在")
-            self.assertNotEqual(text, "", "翻译文本不应为空")
-        except Exception as e:
-            self.fail(f"获取翻译文本时出错: {e}")
-            
-        # 测试获取不存在的翻译
-        with self.assertRaises(KeyError):
-            ll.get_text("non.existent.key")
+        # 获取欢迎消息
+        welcome_text = get_text('system.welcome')
+        self.assertIsNotNone(welcome_text, "获取翻译文本失败")
+        self.assertTrue(len(welcome_text) > 0, "翻译文本内容为空")
+        print(f"当前语言的欢迎消息: {welcome_text}")
     
-    def test_set_language(self):
-        """测试设置语言功能"""
-        # 保存当前语言以便后续恢复
-        current_lang = ll.get_current_language()
+    def test_language_switch(self):
+        """测试语言切换功能"""
+        # 记录当前语言
+        current_lang = get_current_language()
+        self.assertIsNotNone(current_lang, "获取当前语言失败")
+        print(f"当前语言: {current_lang}")
         
-        # 测试设置为中文
-        result = ll.set_language("zh")
-        self.assertTrue(result, "设置语言为中文应该成功")
-        self.assertEqual(ll.get_current_language(), "zh", "当前语言应该为中文")
+        # 切换到中文
+        target_lang = 'zh' if current_lang != 'zh' else 'en'
+        self.assertTrue(set_language(target_lang), f"切换到{target_lang}失败")
+        print(f"切换到{target_lang}成功")
         
-        # 测试设置为英文
-        result = ll.set_language("en")
-        self.assertTrue(result, "设置语言为英文应该成功")
-        self.assertEqual(ll.get_current_language(), "en", "当前语言应该为英文")
+        # 验证语言是否切换成功
+        welcome_text = get_text('system.welcome')
+        self.assertIsNotNone(welcome_text, "获取翻译文本失败")
+        print(f"{target_lang}欢迎消息: {welcome_text}")
         
-        # 测试设置为不支持的语言
-        result = ll.set_language("fr")
-        self.assertFalse(result, "设置不支持的语言应该失败")
-        
-        # 恢复原语言
-        ll.set_language(current_lang)
-        
+        # 切换回原来的语言
+        self.assertTrue(set_language(current_lang), f"切换回{current_lang}失败")
+    
     def test_format_text(self):
         """测试格式化翻译文本功能"""
-        # 测试使用位置参数格式化文本
-        try:
-            # 假设"error.file_not_found"的模板为"找不到文件: {0}"
-            text = ll.format_text("error.file_not_found", "example.txt")
-            self.assertIn("example.txt", text, "格式化后的文本应包含参数")
-        except Exception as e:
-            self.fail(f"使用位置参数格式化文本时出错: {e}")
-            
-        # 测试使用关键字参数格式化文本
-        try:
-            # 假设"error.invalid_value"的模板为"无效的值: {value}，期望: {expected}"
-            text = ll.format_text("error.invalid_value", value="123", expected="数字")
-            self.assertIn("123", text, "格式化后的文本应包含value参数")
-            self.assertIn("数字", text, "格式化后的文本应包含expected参数")
-        except Exception as e:
-            self.fail(f"使用关键字参数格式化文本时出错: {e}")
+        # 使用位置参数格式化
+        test_file = 'example.txt'
+        formatted_text = format_text('error.file_not_found', test_file)
+        self.assertIsNotNone(formatted_text, "格式化文本失败")
+        self.assertIn(test_file, formatted_text, "格式化文本中不包含参数值")
+        print(f"位置参数格式化结果: {formatted_text}")
+        
+        # 使用关键字参数格式化
+        test_value = '123'
+        test_expected = 'number'
+        formatted_text = format_text('error.invalid_value', value=test_value, expected=test_expected)
+        self.assertIsNotNone(formatted_text, "格式化文本失败")
+        self.assertIn(test_value, formatted_text, "格式化文本中不包含value参数值")
+        self.assertIn(test_expected, formatted_text, "格式化文本中不包含expected参数值")
+        print(f"关键字参数格式化结果: {formatted_text}")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,21 @@
+{
+    "plugin_paths": [
+        "/home/ydzat/workspace/Logloom/tests/python/plugins"
+    ],
+    "enabled_plugins": [
+        "level_filter",
+        "json_sink"
+    ],
+    "plugin_order": [
+        "level_filter",
+        "json_sink"
+    ],
+    "plugin_configs": {
+        "level_filter": {
+            "min_level": 2
+        },
+        "json_sink": {
+            "file_path": "/home/ydzat/workspace/Logloom/tests/python/logs/test_output.json"
+        }
+    }
+}

@@ -5,10 +5,18 @@ Logloom Logger 模块
 提供面向对象的日志接口
 """
 
-import logloom
+import threading
 import inspect
 import os.path
-import threading
+import sys
+
+# 尝试导入C扩展模块，如果导入失败，则使用纯Python实现
+try:
+    import logloom
+    _has_c_extension = True
+except ImportError:
+    print("[WARNING] Failed to import logloom C extension module, falling back to pure Python implementation")
+    _has_c_extension = False
 
 # 全局锁用于保护日志操作
 _global_log_lock = threading.RLock()
@@ -16,6 +24,72 @@ _global_log_lock = threading.RLock()
 # 全局变量，跟踪当前活跃的日志文件路径
 _active_log_file = None
 
+# 全局变量，用于纯Python实现
+_current_log_level = "INFO"  # 默认日志级别
+_log_max_size = 1048576  # 默认日志文件大小限制(1MB)
+_log_file_size = {}  # 跟踪日志文件大小
+
+# 纯Python实现的日志函数
+def _py_log(level, module, message):
+    """纯Python实现的日志记录函数"""
+    import time
+    import os
+    global _log_file_size, _log_max_size
+    
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}][{level}][{module}] {message}\n"
+    
+    # 打印到控制台
+    print(log_line, end='')
+    
+    # 如果有日志文件，写入文件
+    if _active_log_file:
+        # 检查是否需要轮转
+        if _active_log_file in _log_file_size:
+            current_size = _log_file_size[_active_log_file]
+        else:
+            # 如果文件存在，获取其大小
+            if os.path.exists(_active_log_file):
+                current_size = os.path.getsize(_active_log_file)
+            else:
+                current_size = 0
+            _log_file_size[_active_log_file] = current_size
+            
+        # 检查是否需要轮转
+        if current_size + len(log_line) > _log_max_size:
+            # 需要轮转日志
+            _rotate_log_file(_active_log_file)
+            # 重置大小计数
+            _log_file_size[_active_log_file] = 0
+                
+        try:
+            with open(_active_log_file, 'a', encoding='utf-8') as f:
+                f.write(log_line)
+                # 更新文件大小
+                _log_file_size[_active_log_file] += len(log_line)
+        except Exception as e:
+            print(f"[ERROR] 无法写入日志文件 {_active_log_file}: {e}")
+
+def _rotate_log_file(file_path):
+    """轮转日志文件"""
+    import os
+    import time
+    
+    if not file_path or not os.path.exists(file_path):
+        return
+        
+    # 生成带时间戳的轮转文件名
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    rotated_name = f"{file_path}.{timestamp}"
+    
+    try:
+        # 重命名当前日志文件
+        os.rename(file_path, rotated_name)
+        print(f"[INFO] 轮转日志文件: {file_path} -> {rotated_name}")
+    except Exception as e:
+        print(f"[ERROR] 轮转日志文件失败 {file_path}: {e}")
+
+# Logger类定义
 class Logger:
     """
     Logloom日志记录器，提供友好的Python API
@@ -89,7 +163,8 @@ class Logger:
         # 使用全局锁保护日志操作
         with _global_log_lock:
             if not self.log_to_file("DEBUG", module, message):
-                logloom.debug(module, message)
+                # 不再直接调用logloom.debug
+                _py_log("DEBUG", module, message)
     
     def info(self, message, *args, **kwargs):
         """
@@ -118,7 +193,8 @@ class Logger:
         # 使用全局锁保护日志操作
         with _global_log_lock:
             if not self.log_to_file("INFO", module, message):
-                logloom.info(module, message)
+                # 不再直接调用logloom.info
+                _py_log("INFO", module, message)
     
     def warn(self, message, *args, **kwargs):
         """
@@ -147,7 +223,8 @@ class Logger:
         # 使用全局锁保护日志操作
         with _global_log_lock:
             if not self.log_to_file("WARN", module, message):
-                logloom.warn(module, message)
+                # 不再直接调用logloom.warn
+                _py_log("WARN", module, message)
     
     def error(self, message, *args, **kwargs):
         """
@@ -176,7 +253,8 @@ class Logger:
         # 使用全局锁保护日志操作
         with _global_log_lock:
             if not self.log_to_file("ERROR", module, message):
-                logloom.error(module, message)
+                # 不再直接调用logloom.error
+                _py_log("ERROR", module, message)
     
     def fatal(self, message, *args, **kwargs):
         """
@@ -205,7 +283,8 @@ class Logger:
         # 使用全局锁保护日志操作
         with _global_log_lock:
             if not self.log_to_file("FATAL", module, message):
-                logloom.fatal(module, message)
+                # 不再直接调用logloom.fatal
+                _py_log("FATAL", module, message)
     
     def set_level(self, level):
         """
@@ -221,6 +300,8 @@ class Logger:
         ValueError
             如果日志级别无效
         """
+        global _current_log_level
+        
         # 如果是枚举值，获取其字符串表示
         if hasattr(level, 'value'):
             level = level.value
@@ -231,19 +312,19 @@ class Logger:
         elif level == 'CRITICAL':
             level = 'FATAL'
             
+        # 验证日志级别的有效性
+        valid_levels = ('DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL')
+        if level not in valid_levels:
+            raise ValueError(f"无效的日志级别: {level}, 有效值: {', '.join(valid_levels)}")
+            
         self._current_level = level  # 保存当前级别以便于 get_level 使用
-        logloom.set_log_level(level)
+        _current_log_level = level   # 更新全局日志级别
         
-    def get_level(self):
-        """
-        获取当前日志级别
-        
-        Returns:
-        --------
-        str
-            当前日志级别
-        """
-        return self._current_level
+        if _has_c_extension:
+            try:
+                logloom.set_log_level(level)
+            except Exception as e:
+                print(f"[WARNING] 设置日志级别失败: {e}")
         
     def set_file(self, file_path):
         """
@@ -259,6 +340,8 @@ class Logger:
         bool
             操作是否成功
         """
+        global _active_log_file
+        
         # 如果已经设置了相同的文件路径，不需要重复设置
         if self._log_file == file_path:
             return True
@@ -285,12 +368,16 @@ class Logger:
             # 在全局锁保护下更新日志文件路径
             with _global_log_lock:
                 # 更新当前活动的日志文件为这个实例的文件
-                try:
-                    logloom.set_log_file(file_path or "")
-                    return True
-                except Exception as e:
-                    print(f"[ERROR] 设置日志文件失败: {e}")
-                    return False
+                _active_log_file = file_path
+                
+                if _has_c_extension:
+                    try:
+                        logloom.set_log_file(file_path or "")
+                    except Exception as e:
+                        print(f"[ERROR] 设置日志文件失败: {e}")
+                        # 即使C扩展调用失败，我们仍然使用纯Python实现
+                
+                return True
         
     def set_rotation_size(self, size):
         """
@@ -301,8 +388,15 @@ class Logger:
         size : int
             日志文件大小上限（字节）
         """
-        logloom.set_log_max_size(size)
+        global _log_max_size
+        _log_max_size = size
         
+        if _has_c_extension:
+            try:
+                logloom.set_log_max_size(size)
+            except Exception as e:
+                print(f"[WARNING] 设置日志文件轮转大小失败: {e}")
+                
     def warning(self, message, *args, **kwargs):
         """
         记录警告信息（别名，与 warn 相同）
@@ -352,7 +446,6 @@ class Logger:
         if not self._log_file:
             return False
             
-        import logloom
         import os
         
         # 使用类的目录锁保护目录创建操作
@@ -382,28 +475,51 @@ class Logger:
             prev_log_file = _active_log_file
             _active_log_file = self._log_file
             
-            # 使用全局锁保护C函数的调用，防止并发问题
+            # 检查日志级别是否需要记录
+            # DEBUG < INFO < WARN < ERROR < FATAL
+            level_order = {"DEBUG": 0, "INFO": 1, "WARN": 2, "ERROR": 3, "FATAL": 4}
+            if level_order.get(level, 0) < level_order.get(_current_log_level, 1):
+                # 如果当前日志级别低于全局设置，则忽略此日志
+                return True
+            
+            # 使用全局锁保护日志操作
             with _global_log_lock:
-                # 设置当前的日志文件为此Logger实例的文件
-                logloom.set_log_file(self._log_file)
-                
                 try:
-                    # 根据级别调用相应的日志函数
-                    if level == "DEBUG":
-                        logloom.debug(module, message)
-                    elif level == "INFO":
-                        logloom.info(module, message)
-                    elif level == "WARN" or level == "WARNING":
-                        logloom.warn(module, message)
-                    elif level == "ERROR":
-                        logloom.error(module, message)
-                    elif level == "FATAL" or level == "CRITICAL":
-                        logloom.fatal(module, message)
+                    if _has_c_extension:
+                        # 设置当前的日志文件为此Logger实例的文件
+                        try:
+                            logloom.set_log_file(self._log_file)
+                        except Exception as e:
+                            print(f"[ERROR] 设置日志文件失败: {e}")
+                            # 使用Python实现继续
+                        
+                        try:
+                            # 根据级别调用相应的日志函数
+                            if level == "DEBUG":
+                                logloom.debug(module, message)
+                            elif level == "INFO":
+                                logloom.info(module, message)
+                            elif level == "WARN" or level == "WARNING":
+                                logloom.warn(module, message)
+                            elif level == "ERROR":
+                                logloom.error(module, message)
+                            elif level == "FATAL" or level == "CRITICAL":
+                                logloom.fatal(module, message)
+                        except Exception:
+                            # 如果C扩展调用失败，回退到纯Python实现
+                            _py_log(level, module, message)
+                    else:
+                        # 纯Python实现
+                        _py_log(level, module, message)
+                        
                 finally:
                     # 恢复之前的日志文件路径
-                    if prev_log_file:
-                        _active_log_file = prev_log_file
-                        logloom.set_log_file(prev_log_file)
+                    _active_log_file = prev_log_file
+                    if _has_c_extension:
+                        try:
+                            logloom.set_log_file(prev_log_file or "")
+                        except Exception:
+                            pass  # 忽略错误
         
         return True
 
@@ -418,3 +534,14 @@ class Logger:
         elif level == "FATAL":
             return "CRITICAL"
         return level
+    
+    def get_level(self):
+        """
+        获取当前日志级别
+        
+        Returns:
+        --------
+        str
+            当前日志级别
+        """
+        return self._current_level

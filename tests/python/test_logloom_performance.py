@@ -12,15 +12,9 @@ import unittest
 import time
 from pathlib import Path
 
-# 添加模块路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src' / 'bindings' / 'python'))
-    
-try:
-    import logloom_py as ll
-except ImportError:
-    print("无法导入logloom_py模块。请确保Python绑定已正确构建。")
-    print("可能需要在src/bindings/python目录运行: python setup.py install --user")
-    sys.exit(1)
+# 导入测试适配器
+sys.path.insert(0, os.path.dirname(__file__))
+from test_adapter import logger, initialize, cleanup, Logger
 
 class LogloomPerformanceTest(unittest.TestCase):
     def setUp(self):
@@ -33,16 +27,16 @@ class LogloomPerformanceTest(unittest.TestCase):
             os.remove(self.log_file)
             
         # 初始化Logloom
-        ll.initialize(self.config_path)
+        initialize(self.config_path)
         
         # 配置日志输出到测试日志文件
-        self.logger = ll.Logger("perf_test")
+        self.logger = Logger("perf_test")
         self.logger.set_level("INFO")
         self.logger.set_file(self.log_file)  # 显式设置日志文件路径
         
     def tearDown(self):
         """测试结束后的清理"""
-        ll.cleanup()
+        cleanup()
         # 测试完成后清理日志文件
         if os.path.exists(self.log_file):
             os.remove(self.log_file)
@@ -122,7 +116,7 @@ class LogloomPerformanceTest(unittest.TestCase):
             self.fail(f"无法创建测试日志文件: {e}")
             
         # 创建一个全局的logger并预先设置日志文件
-        global_logger = ll.Logger("concurrent_test")
+        global_logger = Logger("concurrent_test")
         global_logger.set_file(concurrent_log_file)
         
         # 共享锁用于同步日志操作

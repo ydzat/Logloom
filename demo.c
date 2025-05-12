@@ -9,111 +9,136 @@
 #include "plugin.h"
 
 int main(int argc, char** argv) {
-    printf("=== Logloom 演示程序 ===\n\n");
+    // 打印固定标题，不使用国际化（因为语言系统还未初始化）
+    printf("=== Logloom Demo Program ===\n\n");
     
     // 1. 初始化配置系统
-    printf("正在加载配置...\n");
+    printf("Loading configuration...\n");
     if (config_init() != 0) {
-        printf("错误：无法初始化配置\n");
+        printf("Error: Failed to initialize configuration\n");
         return 1;
     }
     
     // 从文件加载配置
     if (config_load_from_file("config.yaml") != 0) {
-        printf("注意：无法从文件加载配置，使用默认配置\n");
+        printf("Notice: Failed to load configuration from file, using default settings\n");
+    } else {
+        printf("Configuration loaded successfully!\n");
     }
-    
-    // 显示一些配置信息
-    printf("配置加载成功！\n");
-    printf("日志文件路径: %s\n", config_get_log_file());
-    printf("日志级别: %s\n", config_get_log_level());
-    printf("默认语言: %s\n", config_get_language());
     
     // 2. 初始化语言系统，使用配置中的默认语言
     const char* default_lang = config_get_language();
-    printf("\n正在初始化语言系统（默认语言：%s）...\n", default_lang);
+    printf("\nInitializing language system (default language: %s)...\n", default_lang);
     if (lang_init(default_lang) != 0) {
-        printf("错误：无法初始化语言系统\n");
+        printf("Error: Failed to initialize language system\n");
         config_cleanup();
         return 1;
     }
     
-    printf("当前语言: %s\n", lang_get_current());
-    printf("系统启动消息: %s\n", lang_get("system.start_message"));
+    // 现在语言系统已初始化，可以安全地使用国际化功能
+    char* current_lang_msg = lang_getf("demo.current_language", lang_get_current());
+    printf("%s\n", current_lang_msg);
+    free(current_lang_msg);
+    
+    // 显示一些配置信息 (现在使用国际化)
+    char* log_path_msg = lang_getf("demo.log_file_path", config_get_log_file());
+    printf("%s\n", log_path_msg);
+    free(log_path_msg);
+    
+    char* log_level_msg = lang_getf("demo.log_level", config_get_log_level());
+    printf("%s\n", log_level_msg);
+    free(log_level_msg);
+    
+    char* default_lang_msg = lang_getf("demo.default_language", config_get_language());
+    printf("%s\n", default_lang_msg);
+    free(default_lang_msg);
     
     // 3. 初始化日志系统
-    printf("\n正在初始化日志系统...\n");
-    log_level_t log_level = LOG_LEVEL_INFO; // 默认日志级别
+    printf("\n%s\n", lang_get("demo.init_log_system"));
     
-    // 根据配置设置日志级别
+    // 获取配置中的日志级别
     const char* level_str = config_get_log_level();
-    if (strcmp(level_str, "DEBUG") == 0) log_level = LOG_LEVEL_DEBUG;
-    else if (strcmp(level_str, "WARN") == 0) log_level = LOG_LEVEL_WARN;
-    else if (strcmp(level_str, "ERROR") == 0) log_level = LOG_LEVEL_ERROR;
     
-    // 初始化日志系统，暂时使用控制台输出
-    bool use_console = config_is_console_enabled();
-    if (log_init(log_level, use_console) != 0) {
-        printf("错误：无法初始化日志系统\n");
+    // 初始化日志系统
+    if (log_init(level_str, NULL) != 0) {
+        printf("%s\n", lang_get("demo.error.log_init_failed"));
         lang_cleanup();
         config_cleanup();
         return 1;
     }
     
+    // 设置控制台输出
+    log_set_console_enabled(config_is_console_enabled());
+    
     // 设置日志文件
     const char* log_file = config_get_log_file();
     if (log_file && log_file[0] != '\0') {
-        if (!log_set_output_file(log_file)) {
-            printf("警告：无法设置日志文件：%s\n", log_file);
-        }
+        log_set_file(log_file);
+        // 注意：log_set_file函数返回void，不再检查返回值
     }
+    
+    // 设置日志级别 - 确保直接使用配置获取的字符串
+    log_set_level(level_str);
     
     // 设置日志文件大小限制
     log_set_max_file_size(config_get_max_log_size());
     
-    printf("日志系统初始化成功！\n");
+    printf("%s\n", lang_get("demo.log_init_success"));
     
     // 5. 记录各种级别的日志
-    printf("\n正在写入不同级别的日志...\n");
+    printf("\n%s\n", lang_get("demo.writing_logs"));
     
     // 定义一个模块名
     const char* module_name = "Demo";
     
     // DEBUG级别日志
-    log_debug(module_name, "这是一条调试日志，包含详细信息: pid=%d", getpid());
+    log_debug(module_name, lang_getf("demo.log.debug_message", getpid()));
     
     // INFO级别日志
-    log_info(module_name, "系统初始化完成，版本: %s", "1.0.0");
+    log_info(module_name, lang_getf("demo.log.info_message", "1.0.0"));
     
     // WARN级别日志
-    log_warn(module_name, "发现潜在问题：配置项'%s'已弃用，请使用'%s'", "old_option", "new_option");
+    log_warn(module_name, lang_getf("demo.log.warning_message", "old_option", "new_option"));
     
     // ERROR级别日志
-    log_error(module_name, "处理请求时出错：%s", "连接超时");
+    log_error(module_name, lang_getf("demo.log.error_message", "连接超时"));
     
     // 使用语言本地化
-    char* error_msg = lang_getf("system.error_message", "示例错误");
-    log_info(module_name, "本地化错误消息: %s", error_msg);
+    char* error_msg = lang_getf("system.error_message", lang_get("demo.sample_error"));
+    char* localized_msg = lang_getf("demo.localized_error", error_msg);
+    log_info(module_name, "%s", localized_msg);
     free(error_msg);
+    free(localized_msg);
     
     // 7. 切换语言演示
-    printf("\n切换语言演示...\n");
+    printf("\n%s\n", lang_get("demo.language_switch_demo"));
     const char* current_lang = lang_get_current();
     const char* target_lang = strcmp(current_lang, "en") == 0 ? "zh" : "en";
     
     if (lang_set_language(target_lang)) {
-        printf("成功切换到语言: %s\n", target_lang);
-        printf("欢迎消息: %s\n", lang_get("system.start_message"));
+        char* switch_success_msg = lang_getf("demo.language_switch_success", target_lang);
+        printf("%s\n", switch_success_msg);
+        free(switch_success_msg);
+        
+        char* welcome_after_switch_msg = lang_getf("demo.welcome_after_switch", lang_get("system.start_message"));
+        printf("%s\n", welcome_after_switch_msg);
+        free(welcome_after_switch_msg);
     } else {
-        printf("无法切换到语言: %s\n", target_lang);
+        char* switch_failed_msg = lang_getf("demo.language_switch_failed", target_lang);
+        printf("%s\n", switch_failed_msg);
+        free(switch_failed_msg);
     }
     
     // 8. 清理资源
-    printf("\n正在清理资源...\n");
+    printf("\n%s\n", lang_get("demo.cleaning_up"));
+    
+    // 保存退出消息，因为清理后无法再访问语言资源
+    const char* exit_message = lang_get("demo.program_finished");
+    
     log_cleanup();
     lang_cleanup();
     config_cleanup();
     
-    printf("\n演示程序运行完毕！\n");
+    printf("\n%s\n", exit_message);
     return 0;
 }

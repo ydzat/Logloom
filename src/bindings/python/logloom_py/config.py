@@ -7,7 +7,14 @@ Logloom 配置模块
 
 import yaml
 import os
-import logloom
+import sys
+
+# 尝试导入C扩展模块，如果不可用则忽略
+try:
+    import logloom
+    _has_c_extension = True
+except ImportError:
+    _has_c_extension = False
 
 class Config:
     """Logloom配置管理类"""
@@ -70,24 +77,32 @@ class Config:
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 loaded_config = yaml.safe_load(f)
-                if loaded_config:
-                    # 递归更新配置，保留默认值
-                    self._update_dict(self._config, loaded_config)
+                
+                if not loaded_config:
+                    print(f"警告：配置文件 {config_path} 为空或格式不正确")
+                    return False
                     
-                    # 如果加载的是原始结构，同步到测试需要的结构
-                    if 'logloom' in loaded_config:
-                        logloom_cfg = loaded_config.get('logloom', {})
-                        
-                        # 同步日志配置
-                        log_cfg = logloom_cfg.get('log', {})
-                        if log_cfg:
-                            self._config['logging']['default_level'] = log_cfg.get('level', 'INFO')
-                            self._config['logging']['output_path'] = log_cfg.get('file', 'log.txt')
-                            self._config['logging']['max_file_size'] = log_cfg.get('max_size', 10485760)
-                        
-                        # 同步国际化配置
-                        self._config['i18n']['default_language'] = logloom_cfg.get('language', 'zh')
-                        
+                if not isinstance(loaded_config, dict):
+                    print(f"错误：配置文件 {config_path} 格式不正确，应为YAML词典")
+                    return False
+                    
+                # 递归更新配置，保留默认值
+                self._update_dict(self._config, loaded_config)
+                
+                # 如果加载的是原始结构，同步到测试需要的结构
+                if 'logloom' in loaded_config:
+                    logloom_cfg = loaded_config.get('logloom', {})
+                    
+                    # 同步日志配置
+                    log_cfg = logloom_cfg.get('log', {})
+                    if log_cfg:
+                        self._config['logging']['default_level'] = log_cfg.get('level', 'INFO')
+                        self._config['logging']['output_path'] = log_cfg.get('file', 'log.txt')
+                        self._config['logging']['max_file_size'] = log_cfg.get('max_size', 10485760)
+                    
+                    # 同步国际化配置
+                    self._config['i18n']['default_language'] = logloom_cfg.get('language', 'zh')
+                
                 # 同样，如果使用的是测试结构，同步到原始结构
                 if 'logging' in loaded_config:
                     log_cfg = loaded_config.get('logging', {})
@@ -139,7 +154,7 @@ class Config:
         Parameters:
         -----------
         key : str
-            配置键，可以是点分隔的路径，如 'logging.default_level'
+            配置键，可以是点分隔的路径，如 'logging.default_level' 或 'logloom.log.level'
         default : any, optional
             如果键不存在时返回的默认值
         
@@ -151,10 +166,12 @@ class Config:
         parts = key.split('.')
         value = self._config
         
+        # 遍历路径的每一部分
         for part in parts:
-            if part not in value:
+            if isinstance(value, dict) and part in value:
+                value = value[part]
+            else:
                 return default
-            value = value[part]
         
         return value
     
@@ -180,14 +197,6 @@ class Config:
         
         # 设置值
         target[parts[-1]] = value
-        
-        # 如果修改了关键配置，应用到运行时
-        if key == 'logging.default_level':
-            logloom.set_log_level(value)
-        elif key == 'logging.output_path':
-            logloom.set_log_file(value)
-        elif key == 'i18n.default_language':
-            logloom.set_language(value)
     
     def _update_dict(self, target, source):
         """

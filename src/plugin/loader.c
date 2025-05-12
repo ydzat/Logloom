@@ -20,8 +20,14 @@
 #include <limits.h>  // 添加limits.h用于INT_MAX定义
 #include <cjson/cJSON.h>
 
+// 兼容性定义：某些系统可能没有定义DT_REG
+#ifndef DT_REG
+#define DT_REG 8
+#endif
+
 #include "plugin.h"
 #include "log.h"
+#include "lang.h"  // 添加语言模块头文件
 #include "generated/config_gen.h"
 
 // 最大插件路径数量
@@ -103,15 +109,16 @@ static bool parse_plugin_config(void) {
     // 解析插件路径
     paths = cJSON_Parse(LOGLOOM_PLUGIN_PATHS_JSON);
     if (!paths || !cJSON_IsArray(paths)) {
-        log_error("PLUGIN", "解析插件路径JSON失败");
+        log_error("PLUGIN", "%s", lang_get("plugin.error.parsing_paths"));
         goto cleanup;
     }
     
     // 获取路径数量
     int paths_count = cJSON_GetArraySize(paths);
     if (paths_count > MAX_PLUGIN_PATHS) {
-        log_warn("PLUGIN", "插件路径数量超过最大值(%d)，只使用前%d个", 
-                paths_count, MAX_PLUGIN_PATHS);
+        char* msg = lang_getf("plugin.warning.too_many_paths", paths_count, MAX_PLUGIN_PATHS);
+        log_warn("PLUGIN", "%s", msg);
+        free(msg);
         paths_count = MAX_PLUGIN_PATHS;
     }
     
@@ -188,7 +195,7 @@ static bool parse_plugin_config(void) {
     // 解析插件特定配置
     plugin_ctx.plugin_configs = cJSON_Parse(LOGLOOM_PLUGIN_CONFIG_JSON);
     if (!plugin_ctx.plugin_configs) {
-        log_warn("PLUGIN", "解析插件特定配置JSON失败或配置为空");
+        log_warn("PLUGIN", "%s", lang_get("plugin.warning.config_parse_failed"));
     }
     
     result = true;
@@ -309,19 +316,21 @@ static cJSON* get_plugin_specific_config(const char* plugin_name) {
  */
 int plugin_system_init(const char* plugin_dir) {
     if (plugin_ctx.initialized) {
-        log_warn("PLUGIN", "插件系统已初始化，忽略重复调用");
+        log_warn("PLUGIN", "%s", lang_get("plugin.warning.already_initialized"));
         return 0;
     }
     
     // 初始化互斥锁
     if (pthread_mutex_init(&plugin_ctx.lock, NULL) != 0) {
-        log_error("PLUGIN", "无法初始化插件系统互斥锁: %s", strerror(errno));
+        char* msg = lang_getf("plugin.error.mutex_init_failed", strerror(errno));
+        log_error("PLUGIN", "%s", msg);
+        free(msg);
         return -1;
     }
     
     // 解析配置
     if (!parse_plugin_config()) {
-        log_warn("PLUGIN", "解析插件配置失败，使用默认配置");
+        log_warn("PLUGIN", "%s", lang_get("plugin.warning.config_parse_failed_using_default"));
     }
     
     // 如果提供了插件目录参数，覆盖配置中的第一个路径
@@ -339,7 +348,9 @@ int plugin_system_init(const char* plugin_dir) {
         plugin_ctx.plugin_paths_count = 1;
     }
     
-    log_info("PLUGIN", "插件系统已初始化，插件目录：%s", plugin_ctx.plugin_paths[0]);
+    char* msg = lang_getf("plugin.info.initialized", plugin_ctx.plugin_paths[0]);
+    log_info("PLUGIN", "%s", msg);
+    free(msg);
     plugin_ctx.initialized = true;
     return 0;
 }
@@ -354,7 +365,9 @@ static plugin_instance_t* load_plugin(const char* plugin_path) {
     // 创建插件实例
     plugin_instance_t* plugin = (plugin_instance_t*)malloc(sizeof(plugin_instance_t));
     if (!plugin) {
-        log_error("PLUGIN", "内存分配失败，无法加载插件: %s", plugin_path);
+        char* msg = lang_getf("plugin.error.memory_allocation_failed", plugin_path);
+        log_error("PLUGIN", "%s", msg);
+        free(msg);
         return NULL;
     }
     
@@ -381,7 +394,9 @@ static plugin_instance_t* load_plugin(const char* plugin_path) {
     // 检查插件是否启用
     plugin->enabled = is_plugin_enabled(plugin->name);
     if (!plugin->enabled) {
-        log_info("PLUGIN", "插件 %s 已被禁用，跳过加载", plugin->name);
+        char* msg = lang_getf("plugin.info.plugin_disabled", plugin->name);
+        log_info("PLUGIN", "%s", msg);
+        free(msg);
         free(plugin);
         return NULL;
     }
@@ -392,7 +407,9 @@ static plugin_instance_t* load_plugin(const char* plugin_path) {
     // 加载动态库
     plugin->handle = dlopen(plugin_path, RTLD_LAZY);
     if (!plugin->handle) {
-        log_error("PLUGIN", "加载插件 %s 失败: %s", plugin->name, dlerror());
+        char* msg = lang_getf("plugin.error.load_failed", plugin->name, dlerror());
+        log_error("PLUGIN", "%s", msg);
+        free(msg);
         free(plugin);
         return NULL;
     }
@@ -411,27 +428,31 @@ static plugin_instance_t* load_plugin(const char* plugin_path) {
         if (info) {
             // 复制信息到插件实例
             plugin->info.name = strdup(info->name ? info->name : plugin->name);
-            plugin->info.version = strdup(info->version ? info->version : "unknown");
-            plugin->info.author = strdup(info->author ? info->author : "unknown");
+            plugin->info.version = strdup(info->version ? info->version : lang_get("plugin.info.unknown_version"));
+            plugin->info.author = strdup(info->author ? info->author : lang_get("plugin.info.unknown_author"));
             plugin->info.type = info->type;
             plugin->info.mode = info->mode;
             plugin->info.capabilities = info->capabilities;
             plugin->info.description = strdup(info->description ? info->description : "");
         } else {
-            log_error("PLUGIN", "插件 %s 返回了空信息", plugin->name);
+            char* msg = lang_getf("plugin.error.empty_info", plugin->name);
+            log_error("PLUGIN", "%s", msg);
+            free(msg);
             plugin->info.name = strdup(plugin->name);
-            plugin->info.version = strdup("unknown");
-            plugin->info.author = strdup("unknown");
+            plugin->info.version = strdup(lang_get("plugin.info.unknown_version"));
+            plugin->info.author = strdup(lang_get("plugin.info.unknown_author"));
             plugin->info.type = PLUGIN_TYPE_UNKNOWN;
             plugin->info.mode = PLUGIN_MODE_SYNC;
             plugin->info.capabilities = PLUGIN_CAP_NONE;
             plugin->info.description = strdup("");
         }
     } else {
-        log_warn("PLUGIN", "插件 %s 未提供信息函数", plugin->name);
+        char* msg = lang_getf("plugin.warning.no_info_function", plugin->name);
+        log_warn("PLUGIN", "%s", msg);
+        free(msg);
         plugin->info.name = strdup(plugin->name);
-        plugin->info.version = strdup("unknown");
-        plugin->info.author = strdup("unknown");
+        plugin->info.version = strdup(lang_get("plugin.info.unknown_version"));
+        plugin->info.author = strdup(lang_get("plugin.info.unknown_author"));
         plugin->info.type = PLUGIN_TYPE_UNKNOWN;
         plugin->info.mode = PLUGIN_MODE_SYNC;
         plugin->info.capabilities = PLUGIN_CAP_NONE;
@@ -442,8 +463,9 @@ static plugin_instance_t* load_plugin(const char* plugin_path) {
     plugin->config = get_plugin_specific_config(plugin->name);
     
     plugin->enabled = true;
-    log_info("PLUGIN", "加载插件 %s 成功，版本: %s", 
-             plugin->info.name, plugin->info.version);
+    char* msg = lang_getf("plugin.info.load_success", plugin->info.name, plugin->info.version);
+    log_info("PLUGIN", "%s", msg);
+    free(msg);
     
     return plugin;
 }
@@ -458,21 +480,21 @@ static bool load_plugin_symbols(plugin_instance_t* plugin) {
     // 加载初始化函数（必需）
     plugin->init = (plugin_init_func_t)dlsym(plugin->handle, "plugin_init");
     if (!plugin->init) {
-        log_plugin_error(plugin->name, "缺少必需的plugin_init函数");
+        log_plugin_error(plugin->name, lang_get("plugin.error.missing_init_function"));
         return false;
     }
     
     // 加载处理函数（必需）
     plugin->process = (plugin_process_func_t)dlsym(plugin->handle, "plugin_process");
     if (!plugin->process) {
-        log_plugin_error(plugin->name, "缺少必需的plugin_process函数");
+        log_plugin_error(plugin->name, lang_get("plugin.error.missing_process_function"));
         return false;
     }
     
     // 加载关闭函数（必需）
     plugin->shutdown = (plugin_shutdown_func_t)dlsym(plugin->handle, "plugin_shutdown");
     if (!plugin->shutdown) {
-        log_plugin_error(plugin->name, "缺少必需的plugin_shutdown函数");
+        log_plugin_error(plugin->name, lang_get("plugin.error.missing_shutdown_function"));
         return false;
     }
     
@@ -486,7 +508,9 @@ static bool load_plugin_symbols(plugin_instance_t* plugin) {
  * @param message 错误消息
  */
 static void log_plugin_error(const char* plugin_name, const char* message) {
-    log_error("PLUGIN", "插件 %s 错误: %s", plugin_name, message);
+    char* msg = lang_getf("plugin.error.general", plugin_name, message);
+    log_error("PLUGIN", "%s", msg);
+    free(msg);
 }
 
 /**
@@ -496,7 +520,7 @@ static void log_plugin_error(const char* plugin_name, const char* message) {
  */
 size_t plugin_scan_and_load(void) {
     if (!plugin_ctx.initialized) {
-        log_error("PLUGIN", "插件系统尚未初始化，无法扫描插件");
+        log_error("PLUGIN", "%s", lang_get("plugin.error.not_initialized"));
         return 0;
     }
     
@@ -514,8 +538,10 @@ size_t plugin_scan_and_load(void) {
     for (int dir_idx = 0; dir_idx < plugin_ctx.plugin_paths_count; dir_idx++) {
         DIR* dir = opendir(plugin_ctx.plugin_paths[dir_idx]);
         if (!dir) {
-            log_error("PLUGIN", "无法打开插件目录 %s: %s", 
-                      plugin_ctx.plugin_paths[dir_idx], strerror(errno));
+            char* msg = lang_getf("plugin.error.cannot_open_dir", 
+                     plugin_ctx.plugin_paths[dir_idx], strerror(errno));
+            log_error("PLUGIN", "%s", msg);
+            free(msg);
             continue;
         }
         
@@ -542,7 +568,9 @@ size_t plugin_scan_and_load(void) {
             
             // 检查插件是否已加载
             if (find_plugin_by_name(entry->d_name)) {
-                log_warn("PLUGIN", "插件 %s 已加载，跳过", entry->d_name);
+                char* msg = lang_getf("plugin.warning.already_loaded", entry->d_name);
+                log_warn("PLUGIN", "%s", msg);
+                free(msg);
                 pthread_mutex_unlock(&plugin_ctx.lock);
                 continue;
             }
@@ -558,11 +586,15 @@ size_t plugin_scan_and_load(void) {
                 // 初始化插件，传递辅助函数
                 int init_result = plugin->init(&helpers);
                 if (init_result != 0) {
-                    log_error("PLUGIN", "初始化插件 %s 失败: 错误码 %d", 
+                    char* msg = lang_getf("plugin.error.init_failed", 
                               plugin->name, init_result);
+                    log_error("PLUGIN", "%s", msg);
+                    free(msg);
                     plugin->enabled = false;
                 } else {
-                    log_info("PLUGIN", "插件 %s 初始化成功", plugin->name);
+                    char* msg = lang_getf("plugin.info.init_success", plugin->name);
+                    log_info("PLUGIN", "%s", msg);
+                    free(msg);
                 }
             }
             
@@ -572,7 +604,9 @@ size_t plugin_scan_and_load(void) {
         closedir(dir);
     }
     
-    log_info("PLUGIN", "扫描完成，成功加载了 %zu 个插件", loaded_count);
+    char* msg = lang_getf("plugin.info.scan_complete", loaded_count);
+    log_info("PLUGIN", "%s", msg);
+    free(msg);
     return loaded_count;
 }
 
@@ -609,7 +643,9 @@ void plugin_unload_all(void) {
         
         // 调用关闭函数
         if (current->enabled && current->shutdown) {
-            log_info("PLUGIN", "正在关闭插件: %s", current->name);
+            char* msg = lang_getf("plugin.info.shutting_down", current->name);
+            log_info("PLUGIN", "%s", msg);
+            free(msg);
             current->shutdown();
         }
         
@@ -633,7 +669,7 @@ void plugin_unload_all(void) {
     plugin_ctx.plugin_count = 0;
     
     pthread_mutex_unlock(&plugin_ctx.lock);
-    log_info("PLUGIN", "所有插件已卸载");
+    log_info("PLUGIN", "%s", lang_get("plugin.info.all_plugins_unloaded"));
 }
 
 /**
@@ -653,14 +689,18 @@ bool plugin_set_enabled(const char* name, bool enabled) {
     plugin_instance_t* plugin = find_plugin_by_name(name);
     if (!plugin) {
         pthread_mutex_unlock(&plugin_ctx.lock);
-        log_error("PLUGIN", "插件 %s 未找到，无法更改其状态", name);
+        char* msg = lang_getf("plugin.error.plugin_not_found", name);
+        log_error("PLUGIN", "%s", msg);
+        free(msg);
         return false;
     }
     
     plugin->enabled = enabled;
     
     pthread_mutex_unlock(&plugin_ctx.lock);
-    log_info("PLUGIN", "插件 %s 已%s", name, enabled ? "启用" : "禁用");
+    char* msg = lang_getf("plugin.info.plugin_state_changed", name, enabled ? lang_get("plugin.enabled") : lang_get("plugin.disabled"));
+    log_info("PLUGIN", "%s", msg);
+    free(msg);
     return true;
 }
 
@@ -828,7 +868,7 @@ void plugin_system_cleanup(void) {
     free_plugin_config();
     
     plugin_ctx.initialized = false;
-    log_info("PLUGIN", "插件系统已清理");
+    log_info("PLUGIN", "%s", lang_get("plugin.system.cleanup"));
 }
 
 /**

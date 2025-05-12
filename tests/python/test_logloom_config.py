@@ -14,15 +14,9 @@ import shutil
 import yaml
 from pathlib import Path
 
-# 添加模块路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src' / 'bindings' / 'python'))
-    
-try:
-    import logloom_py as ll
-except ImportError:
-    print("无法导入logloom_py模块。请确保Python绑定已正确构建。")
-    print("可能需要在src/bindings/python目录运行: python setup.py install --user")
-    sys.exit(1)
+# 导入测试适配器
+sys.path.insert(0, os.path.dirname(__file__))
+from test_adapter import logger as ll, initialize, cleanup, Logger, get_current_language
 
 class LogloomConfigTest(unittest.TestCase):
     def setUp(self):
@@ -42,7 +36,7 @@ class LogloomConfigTest(unittest.TestCase):
         """测试结束后的清理"""
         # 确保Logloom资源被清理
         try:
-            ll.cleanup()
+            cleanup()
         except:
             pass
             
@@ -51,9 +45,9 @@ class LogloomConfigTest(unittest.TestCase):
     
     def test_default_config(self):
         """测试默认配置加载"""
-        result = ll.initialize(self.test_config_path)
+        result = initialize(self.test_config_path)
         self.assertTrue(result, "使用默认配置初始化应该成功")
-        ll.cleanup()
+        cleanup()
     
     def test_custom_log_level(self):
         """测试自定义日志级别配置"""
@@ -77,11 +71,12 @@ class LogloomConfigTest(unittest.TestCase):
             yaml.dump(config, f)
             
         # 使用修改后的配置初始化
-        ll.initialize(self.test_config_path)
+        initialize(self.test_config_path)
         
-        # 检查日志级别是否已设置为DEBUG
-        self.assertEqual(ll.logger.get_level(), 'DEBUG', "日志级别应该被配置为DEBUG")
-        ll.cleanup()
+        # 检查日志级别是否为DEBUG
+        logger = Logger("config_test")
+        self.assertEqual(logger.get_level(), 'DEBUG', "日志级别应该被配置为DEBUG")
+        cleanup()
     
     def test_custom_output_path(self):
         """测试自定义日志输出路径配置"""
@@ -107,14 +102,14 @@ class LogloomConfigTest(unittest.TestCase):
             yaml.dump(config, f)
             
         # 使用修改后的配置初始化
-        ll.initialize(self.test_config_path)
+        initialize(self.test_config_path)
         
-        # 确保日志文件路径在我们的Logger实例中正确设置
-        ll.logger.set_file(custom_log_path)
+        # 创建logger并设置日志文件路径
+        logger = Logger("config_test")
         
         # 记录日志
-        ll.logger.info("测试自定义日志路径")
-        ll.cleanup()
+        logger.info("测试自定义日志路径")
+        cleanup()
         
         # 检查日志文件是否已创建
         self.assertTrue(os.path.exists(custom_log_path), "应该在自定义路径创建日志文件")
@@ -139,11 +134,11 @@ class LogloomConfigTest(unittest.TestCase):
             yaml.dump(config, f)
             
         # 使用修改后的配置初始化
-        ll.initialize(self.test_config_path)
+        initialize(self.test_config_path)
         
         # 检查默认语言是否为英文
-        self.assertEqual(ll.get_current_language(), 'en', "默认语言应该被设置为英文")
-        ll.cleanup()
+        self.assertEqual(get_current_language(), 'en', "默认语言应该被设置为英文")
+        cleanup()
         
         # 修改配置文件，设置默认语言为中文
         with open(self.test_config_path, 'r') as f:
@@ -163,11 +158,11 @@ class LogloomConfigTest(unittest.TestCase):
             yaml.dump(config, f)
             
         # 使用修改后的配置初始化
-        ll.initialize(self.test_config_path)
+        initialize(self.test_config_path)
         
         # 检查默认语言是否为中文
-        self.assertEqual(ll.get_current_language(), 'zh', "默认语言应该被设置为中文")
-        ll.cleanup()
+        self.assertEqual(get_current_language(), 'zh', "默认语言应该被设置为中文")
+        cleanup()
     
     def test_invalid_config(self):
         """测试无效配置文件处理"""
@@ -178,7 +173,7 @@ class LogloomConfigTest(unittest.TestCase):
             
         # 尝试使用无效配置初始化
         try:
-            result = ll.initialize(invalid_config_path)
+            result = initialize(invalid_config_path)
             self.assertFalse(result, "使用无效配置初始化应该失败")
         except:
             # 如果初始化抛出异常，测试也通过
@@ -186,7 +181,7 @@ class LogloomConfigTest(unittest.TestCase):
             
         # 清理可能的资源
         try:
-            ll.cleanup()
+            cleanup()
         except:
             pass
 

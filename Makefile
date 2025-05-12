@@ -5,7 +5,7 @@ CFLAGS = -Wall -Werror -g -I./include -fPIC
 LDFLAGS = -ldl -pthread  # For plugin loading and threading
 
 # 编译目标
-.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test api-check api-check-html api-check-regex
+.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test api-check api-check-html api-check-regex python python-install python-test
 
 # Directories
 SRC_DIR = src
@@ -16,6 +16,9 @@ LANG_DIR = locales
 KERNEL_DIR = kernel
 CORE_DIR = $(SRC_DIR)/core
 USERSPACE_DIR = $(SRC_DIR)/userspace
+PYTHON_DIR = $(SRC_DIR)/bindings/python
+PYTHON_PLUGIN_DIR = $(PYTHON_DIR)/plugin
+PYTHON_TEST_DIR = $(TEST_DIR)/python
 
 # Source files
 CORE_SRC = $(wildcard $(CORE_DIR)/*.c)
@@ -61,7 +64,32 @@ demo: $(BUILD_DIR)/demo.o liblogloom.a
 
 # Python bindings
 python: userspace
-	cd $(SRC_DIR)/bindings/python && python setup.py build
+	cd $(PYTHON_DIR) && python setup.py build
+
+# Python安装目标 (用户级)
+python-install: python
+	cd $(PYTHON_DIR) && pip install --user .
+
+# 系统级安装 (需要root权限)
+install: userspace python
+	# 安装C库
+	install -D -m 644 liblogloom.a /usr/local/lib/liblogloom.a
+	install -d /usr/local/include/logloom
+	install -m 644 $(INCLUDE_DIR)/*.h /usr/local/include/logloom/
+	cp -r $(INCLUDE_DIR)/generated /usr/local/include/logloom/
+	# 安装Python绑定和插件系统 (系统级)
+	cd $(PYTHON_DIR) && pip install .
+
+# Python插件系统测试
+python-test: python
+	# 配置PYTHONPATH以包含当前构建的Python绑定
+	cd $(PYTHON_DIR)/build && find . -name "*.so" -o -name "logloom*.py" | sort
+	PYTHONPATH=$(PYTHON_DIR):$(PYTHON_DIR)/build/lib.linux-x86_64-cpython-312 \
+	LOGLOOM_DEBUG=1 \
+	python -c "import sys; print('Python路径:', sys.path); import logloom; print('Logloom已导入')"
+	PYTHONPATH=$(PYTHON_DIR):$(PYTHON_DIR)/build/lib.linux-x86_64-cpython-312 \
+	LOGLOOM_DEBUG=1 \
+	python $(PYTHON_TEST_DIR)/test_python_plugins.py
 
 # API一致性检查目标
 api-check:
@@ -89,6 +117,7 @@ api-check-html:
 # Test target
 test: dirs lang_headers config_headers
 	$(MAKE) -f Makefile.test
+	$(MAKE) python-test
 
 # Build rules
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
@@ -109,4 +138,4 @@ clean-all: clean
 	find . -name "*.cmd" -delete
 	find . -name "modules.order" -delete
 	find . -name "Module.symvers" -delete
-	rm -rf $(SRC_DIR)/bindings/python/build
+	rm -rf $(PYTHON_DIR)/build $(PYTHON_DIR)/*.egg-info $(PYTHON_DIR)/dist

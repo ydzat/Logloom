@@ -30,7 +30,8 @@
 | M9      | C库与Python绑定API匹配 | 确保C库API与Python绑定功能一致      | ✅ 已完成 |
 | M10     | 高并发稳定性验证    | 多线程环境下正常运行无数据竞争               | ✅ 已完成 |
 | M11     | API一致性自动检查工具 | 能够自动验证头文件与实现的API一致性          | ✅ 已完成 |
-| M12     | AI分析模块集成    | 支持智能日志分析和诊断功能                  | 📅 规划中 |
+| M12     | Python插件系统实现 | 与C插件系统功能等效且支持插件发现和加载          | 🔄 进行中 |
+| M13     | AI分析模块集成     | 支持智能日志分析和诊断功能                  | 📅 规划中 |
 
 ---
 
@@ -165,6 +166,44 @@ Logloom 基础系统包含以下模块：
 ./tools/api_consistency_check.py --include-dir include --src-dir src --output html --output-file api_report.html
 ```
 
+### 5. Python 绑定与测试适配器（Python Bindings and Test Adapters）
+
+Logloom 提供了完整的 Python 语言支持，包括：
+
+- **核心功能接口**：日志记录、国际化、配置管理
+- **模块化日志记录器**：每个模块可独立控制日志级别
+- **测试适配器系统**：当真实模块不可用时提供模拟实现
+
+测试适配器的关键特性：
+
+```python
+# 使用测试适配器
+from tests.python.test_adapter import logger, Logger, LogLevel
+
+# 创建日志记录器
+logger = Logger("my_module")
+logger.set_level(LogLevel.DEBUG)
+logger.set_file("my_logs.log")
+
+# 设置日志轮转
+logger.set_rotation_size(1024)  # 1KB
+
+# 记录不同级别的日志
+logger.debug("这是调试信息: {}", 123)
+logger.info("这是信息")
+logger.warning("这是警告: {warning}", warning="警告内容")
+logger.error("这是错误")
+logger.critical("这是严重错误")
+```
+
+测试适配器支持：
+
+- 日志级别过滤
+- 格式化位置参数和关键字参数
+- 日志文件轮转功能
+- 多语言支持
+- 模块独立设置
+
 ---
 
 ## 🚀 典型应用场景（Typical Use Cases）
@@ -181,6 +220,41 @@ Logloom 基础系统包含以下模块：
 
 ## 🚀 快速开始（Quick Start）
 
+### 环境需求
+
+Logloom库的基本要求：
+
+- **操作系统**：
+  - Linux: Fedora 41（已测试）
+  - 其他Linux发行版（理论上支持）
+  - macOS或Windows（理论上支持，通过WSL）
+- **编译器**：GCC 5.0+或Clang 5.0+
+- **构建工具**：Make
+- **Python**：Python 3.13（虚拟环境中的版本，已测试）（其他版本可能支持，需要注意兼容性）
+- **其他依赖**：
+  - libyaml-dev（用于YAML配置解析）
+  - pkg-config（构建系统依赖）
+  - python3-dev（Python绑定需要）
+
+在Fedora 41上安装依赖：
+```bash
+sudo dnf install make gcc libyaml-devel pkgconfig python3-devel
+```
+
+在Debian/Ubuntu上安装依赖：
+```bash
+sudo apt-get update
+sudo apt-get install build-essential libyaml-dev pkg-config python3-dev
+```
+
+推荐使用Python虚拟环境：
+```bash
+python3 -m venv venv
+source venv/bin/activate
+# 安装开发依赖
+pip install -r requirements-dev.txt
+```
+
 ### 安装
 
 1. 克隆仓库
@@ -189,59 +263,202 @@ Logloom 基础系统包含以下模块：
    cd Logloom
    ```
 
-2. 编译项目
+2. 编译核心库
    ```bash
    make
    ```
 
-### 基本使用
+3. 安装库（可选）
+   ```bash
+   sudo make install
+   ```
+
+4. 编译并安装Python绑定（可选）
+   ```bash
+   cd src/bindings/python
+   pip install -e .
+   ```
+
+### 验证安装
+
+运行测试套件确认安装成功：
+
+```bash
+# C库测试
+./run_tests.sh
+
+# Python绑定测试
+cd tests/python
+python run_tests.py
+```
+
+### 在C/C++项目中使用
 
 1. **创建配置文件**
 
-   创建 `config.yaml` 文件（或使用示例配置文件）:
+   创建 `config.yaml` 文件:
 
    ```yaml
    logloom:
      language: "zh"  # 或 "en"
      log:
-       level: "DEBUG"  # 可选: DEBUG, INFO, WARN, ERROR
+       level: "DEBUG"  # 可选: DEBUG, INFO, WARN, ERROR, FATAL
        file: "./app.log"
        max_size: 1048576  # 1MB
        console: true
    ```
 
-2. **在你的C程序中使用**
+2. **引入头文件并初始化**
 
    ```c
-   #include "include/log.h"
-   #include "include/lang.h"
-   
+   #include <logloom/log.h>
+   #include <logloom/lang.h>
+   #include <logloom/config.h>
+
    int main() {
+       // 初始化配置
+       logloom_config_init("./config.yaml");
+       
        // 初始化日志系统
        log_init();
-       log_set_level(LOG_LEVEL_DEBUG);
-       log_set_output_file("my_app.log");
+       
+       // 使用从配置中加载的设置，或手动设置
+       // log_set_level(LOG_LEVEL_DEBUG);
+       // log_set_output_file("my_app.log");
        
        // 设置语言
        lang_set_language("zh");  // 或 "en"
        
-       // 使用日志系统
-       log_debug("LOGLOOM_LANG_DEBUG_MESSAGE", 123);
-       log_info("LOGLOOM_LANG_INFO_MESSAGE");
-       log_warn("LOGLOOM_LANG_WARN_WITH_PARAM", "警告参数");
-       log_error("LOGLOOM_LANG_ERROR_CODE", 404);
+       // ...应用代码...
        
        return 0;
    }
    ```
 
-3. **编译你的程序**
+3. **记录日志**
 
+   ```c
+   // 不同级别的日志
+   log_debug("初始化应用程序"); // 调试信息
+   log_info("用户 %s 登录系统", username);
+   log_warn("检测到异常访问模式");
+   log_error("无法连接到数据库: %s", db_error);
+   log_fatal("系统崩溃: %d", error_code);
+   
+   // 带有国际化支持的日志
+   log_info("LOGLOOM_USER_LOGIN", username); // 会从语言资源中查找对应的文本
+   ```
+
+4. **编译你的程序**
+
+   使用pkg-config（如果已安装Logloom）：
+   ```bash
+   gcc your_program.c $(pkg-config --cflags --libs logloom) -o yourprogram
+   ```
+
+   或者直接指定路径：
    ```bash
    gcc your_program.c -I/path/to/logloom/include -L/path/to/logloom -llogloom -o yourprogram
    ```
 
-### 运行演示
+### 在Python项目中使用
+
+1. **导入模块**
+
+   ```python
+   from logloom import logger, Logger, LogLevel, initialize
+   ```
+
+2. **初始化系统**
+
+   ```python
+   # 使用配置文件初始化
+   initialize("./config.yaml")
+   
+   # 或手动配置
+   root_logger = Logger("app")
+   root_logger.set_level(LogLevel.DEBUG)
+   root_logger.set_file("app.log")
+   ```
+
+3. **使用模块化日志记录**
+
+   ```python
+   # 创建特定模块的日志记录器
+   db_logger = Logger("database")
+   auth_logger = Logger("auth")
+   
+   # 设置不同的日志级别
+   db_logger.set_level(LogLevel.INFO)
+   auth_logger.set_level(LogLevel.DEBUG)
+   
+   # 记录日志
+   db_logger.info("数据库连接成功")
+   auth_logger.debug("验证请求: {}", request_id)
+   auth_logger.warning("用户 {user} 登录失败: {reason}", user="admin", reason="密码错误")
+   ```
+
+4. **日志轮转**
+
+   ```python
+   # 设置日志轮转（文件大小超过1MB时）
+   db_logger.set_rotation_size(1024 * 1024)  # 1MB
+   ```
+
+5. **国际化支持**
+
+   ```python
+   from logloom import set_language, get_text, format_text
+   
+   # 设置当前语言
+   set_language("zh")  # 或 "en" 
+   
+   # 获取翻译文本
+   welcome_text = get_text("welcome")
+   
+   # 格式化带参数的文本
+   error_text = format_text("error.file_not_found", "/data/config.json")
+   user_text = format_text("user.profile", name="张三", age=30)
+   ```
+
+### 高级使用
+
+1. **启用插件系统**
+
+   ```c
+   // C语言中加载插件
+   plugin_init();
+   plugin_load_directory("./plugins");
+   
+   // 处理日志时会自动应用已加载的插件
+   log_info("这条日志会经过所有已加载的过滤器和输出插件处理");
+   ```
+
+   ```python
+   # Python中加载插件
+   from logloom import initialize_plugins, load_plugins
+   
+   initialize_plugins(plugin_dir="./plugins", config_path="./plugin_config.json")
+   load_plugins()
+   ```
+
+2. **自定义日志格式**
+
+   ```c
+   // 设置自定义格式（如果支持）
+   log_set_format("[%level%][%time%] %message%");
+   ```
+
+3. **多线程环境**
+
+   Logloom在多线程环境中是安全的，不需要额外的锁：
+
+   ```c
+   // 在任意线程中记录日志
+   log_info("线程 %d 正在处理任务 %s", thread_id, task_name);
+   ```
+
+### 运行演示程序
 
 ```bash
 # 编译并运行示例程序
@@ -249,7 +466,7 @@ make demo
 ./demo
 ```
 
-查看生成的日志文件或控制台输出。
+查看生成的日志文件（`logloom.log`）或控制台输出。
 
 ---
 

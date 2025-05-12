@@ -1,0 +1,6 @@
+# Logloom 测试配置
+logloom:
+  language: zh
+  log:
+    level: DEBUG
+    path: ./logs

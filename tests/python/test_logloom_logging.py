@@ -12,15 +12,9 @@ import unittest
 import time
 from pathlib import Path
 
-# 添加模块路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src' / 'bindings' / 'python'))
-    
-try:
-    import logloom_py as ll
-except ImportError:
-    print("无法导入logloom_py模块。请确保Python绑定已正确构建。")
-    print("可能需要在src/bindings/python目录运行: python setup.py install --user")
-    sys.exit(1)
+# 导入测试适配器
+sys.path.insert(0, os.path.dirname(__file__))
+from test_adapter import logger as ll, initialize, cleanup, Logger, LogLevel
 
 class LogloomLoggingTest(unittest.TestCase):
     def setUp(self):
@@ -33,16 +27,16 @@ class LogloomLoggingTest(unittest.TestCase):
             os.remove(self.log_file)
             
         # 初始化Logloom
-        ll.initialize(self.config_path)
+        initialize(self.config_path)  # 修正：使用正确导入的initialize函数
         
         # 配置日志输出到测试日志文件
-        self.logger = ll.Logger("python_test")
+        self.logger = Logger("python_test")  # 修正：直接使用导入的Logger类
         self.logger.set_file(self.log_file)
-        self.logger.set_level(ll.LogLevel.DEBUG)
+        self.logger.set_level(LogLevel.DEBUG)  # 修正：使用导入的LogLevel
         
     def tearDown(self):
         """测试结束后的清理"""
-        ll.cleanup()
+        cleanup()  # 修正：使用导入的cleanup函数
         # 测试完成后清理日志文件
         if os.path.exists(self.log_file):
             os.remove(self.log_file)
@@ -77,7 +71,7 @@ class LogloomLoggingTest(unittest.TestCase):
     def test_log_filtering(self):
         """测试日志级别过滤"""
         # 设置日志级别为INFO（会过滤掉DEBUG级别的日志）
-        self.logger.set_level(ll.LogLevel.INFO)
+        self.logger.set_level(LogLevel.INFO)  # 修正：直接使用导入的LogLevel
         
         # 记录不同级别的日志
         self.logger.debug("这条调试信息不应该被记录")
@@ -138,7 +132,7 @@ class LogloomLoggingTest(unittest.TestCase):
             os.remove(second_log_file)
         
         # 创建第二个日志记录器
-        second_logger = ll.Logger("second_test")
+        second_logger = Logger("second_test")  # 修正：直接使用导入的Logger类
         second_logger.set_file(second_log_file)
         
         # 使用两个不同的日志记录器记录日志

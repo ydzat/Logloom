@@ -30,7 +30,8 @@ Logloom is currently in active development:
 | M9        | C Library and Python API Alignment | Ensure C library API matches Python bindings         | ✅ Completed |
 | M10       | High Concurrency Stability      | Normal operation in multi-threaded environment         | ✅ Completed |
 | M11       | API Consistency Checker Tool     | Automatically verify header and implementation consistency | ✅ Completed |
-| M12       | AI Analysis Module Integration   | Support intelligent log analysis and diagnostics       | 📅 Planned |
+| M12       | Python Plugin System Implementation | Feature parity with C plugin system & plugin discovery | 🔄 In Progress |
+| M13       | AI Analysis Module Integration   | Support intelligent log analysis and diagnostics       | 📅 Planned |
 
 ---
 
@@ -180,9 +181,82 @@ Usage example:
 ./tools/api_consistency_check.py --include-dir include --src-dir src --output html --output-file api_report.html
 ```
 
+### 5. Python Bindings and Test Adapters
+
+Logloom provides comprehensive Python language support, including:
+
+- **Core functionality interface**: Logging, internationalization, and configuration management
+- **Modular loggers**: Each module can independently control log levels
+- **Test adapter system**: Provides mock implementations when real modules are unavailable
+
+Key features of the test adapter:
+
+```python
+# Using the test adapter
+from tests.python.test_adapter import logger, Logger, LogLevel
+
+# Create a logger
+logger = Logger("my_module")
+logger.set_level(LogLevel.DEBUG)
+logger.set_file("my_logs.log")
+
+# Set log rotation
+logger.set_rotation_size(1024)  # 1KB
+
+# Log at different levels
+logger.debug("This is debug info: {}", 123)
+logger.info("This is information")
+logger.warning("This is a warning: {warning}", warning="Warning content")
+logger.error("This is an error")
+logger.critical("This is a critical error")
+```
+
+The test adapter supports:
+
+- Log level filtering
+- Formatting positional and keyword arguments
+- Log file rotation
+- Multi-language support
+- Module-specific settings
+
 ---
 
 ## 🚀 Quick Start
+
+### Requirements
+
+Basic requirements for the Logloom library:
+
+- **Operating System**:
+  - Linux: Fedora 41 (tested)
+  - Other Linux distributions (theoretically supported)
+  - macOS or Windows (theoretically supported, via WSL)
+- **Compiler**: GCC 5.0+ or Clang 5.0+
+- **Build Tools**: Make
+- **Python**: Python 3.13 (version in virtual environment, tested) (other versions may be supported but compatibility should be considered)
+- **Dependencies**:
+  - libyaml-dev (for YAML config parsing)
+  - pkg-config (for build system)
+  - python3-dev (required for Python bindings)
+
+Install dependencies on Fedora 41:
+```bash
+sudo dnf install make gcc libyaml-devel pkgconfig python3-devel
+```
+
+Install dependencies on Debian/Ubuntu:
+```bash
+sudo apt-get update
+sudo apt-get install build-essential libyaml-dev pkg-config python3-dev
+```
+
+Recommended to use Python virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+# Install development dependencies
+pip install -r requirements-dev.txt
+```
 
 ### Installation
 
@@ -192,56 +266,199 @@ Usage example:
    cd Logloom
    ```
 
-2. Compile the project
+2. Build the core library
    ```bash
    make
    ```
 
-### Basic Usage
+3. Install the library (optional)
+   ```bash
+   sudo make install
+   ```
 
-1. **Create a configuration file**
+4. Build and install Python bindings (optional)
+   ```bash
+   cd src/bindings/python
+   pip install -e .
+   ```
 
-   Create a `config.yaml` file (or use the example configuration file):
+### Verify Installation
+
+Run the test suite to confirm successful installation:
+
+```bash
+# C library tests
+./run_tests.sh
+
+# Python binding tests
+cd tests/python
+python run_tests.py
+```
+
+### Using in C/C++ Projects
+
+1. **Create a Configuration File**
+
+   Create a `config.yaml` file:
 
    ```yaml
    logloom:
      language: "en"  # or "zh"
      log:
-       level: "DEBUG"  # Options: DEBUG, INFO, WARN, ERROR
+       level: "DEBUG"  # Options: DEBUG, INFO, WARN, ERROR, FATAL
        file: "./app.log"
        max_size: 1048576  # 1MB
        console: true
    ```
 
-2. **Use in your C program**
+2. **Include Headers and Initialize**
 
    ```c
-   #include "include/log.h"
-   #include "include/lang.h"
-   
+   #include <logloom/log.h>
+   #include <logloom/lang.h>
+   #include <logloom/config.h>
+
    int main() {
+       // Initialize configuration
+       logloom_config_init("./config.yaml");
+       
        // Initialize logging system
        log_init();
-       log_set_level(LOG_LEVEL_DEBUG);
-       log_set_output_file("my_app.log");
+       
+       // Use settings from config, or set manually
+       // log_set_level(LOG_LEVEL_DEBUG);
+       // log_set_output_file("my_app.log");
        
        // Set language
        lang_set_language("en");  // or "zh"
        
-       // Use the logging system
-       log_debug("LOGLOOM_LANG_DEBUG_MESSAGE", 123);
-       log_info("LOGLOOM_LANG_INFO_MESSAGE");
-       log_warn("LOGLOOM_LANG_WARN_WITH_PARAM", "warning parameter");
-       log_error("LOGLOOM_LANG_ERROR_CODE", 404);
+       // ...your application code...
        
        return 0;
    }
    ```
 
-3. **Compile your program**
+3. **Log Messages**
 
+   ```c
+   // Different log levels
+   log_debug("Initializing application"); // Debug info
+   log_info("User %s logged in", username);
+   log_warn("Unusual access pattern detected");
+   log_error("Failed to connect to database: %s", db_error);
+   log_fatal("System crash: %d", error_code);
+   
+   // With internationalization support
+   log_info("LOGLOOM_USER_LOGIN", username); // Will look up text from language resources
+   ```
+
+4. **Compile Your Program**
+
+   Using pkg-config (if Logloom was installed):
+   ```bash
+   gcc your_program.c $(pkg-config --cflags --libs logloom) -o yourprogram
+   ```
+
+   Or specify paths directly:
    ```bash
    gcc your_program.c -I/path/to/logloom/include -L/path/to/logloom -llogloom -o yourprogram
+   ```
+
+### Using in Python Projects
+
+1. **Import Modules**
+
+   ```python
+   from logloom import logger, Logger, LogLevel, initialize
+   ```
+
+2. **Initialize the System**
+
+   ```python
+   # Initialize with config file
+   initialize("./config.yaml")
+   
+   # Or configure manually
+   root_logger = Logger("app")
+   root_logger.set_level(LogLevel.DEBUG)
+   root_logger.set_file("app.log")
+   ```
+
+3. **Use Modular Logging**
+
+   ```python
+   # Create loggers for specific modules
+   db_logger = Logger("database")
+   auth_logger = Logger("auth")
+   
+   # Set different log levels
+   db_logger.set_level(LogLevel.INFO)
+   auth_logger.set_level(LogLevel.DEBUG)
+   
+   # Log messages
+   db_logger.info("Database connection successful")
+   auth_logger.debug("Validation request: {}", request_id)
+   auth_logger.warning("User {user} login failed: {reason}", user="admin", reason="password incorrect")
+   ```
+
+4. **Log Rotation**
+
+   ```python
+   # Set log rotation (when file size exceeds 1MB)
+   db_logger.set_rotation_size(1024 * 1024)  # 1MB
+   ```
+
+5. **Internationalization Support**
+
+   ```python
+   from logloom import set_language, get_text, format_text
+   
+   # Set current language
+   set_language("en")  # or "zh"
+   
+   # Get translated text
+   welcome_text = get_text("welcome")
+   
+   # Format text with parameters
+   error_text = format_text("error.file_not_found", "/data/config.json")
+   user_text = format_text("user.profile", name="John", age=30)
+   ```
+
+### Advanced Usage
+
+1. **Enable the Plugin System**
+
+   ```c
+   // Loading plugins in C
+   plugin_init();
+   plugin_load_directory("./plugins");
+   
+   // Logs will automatically be processed by loaded plugins
+   log_info("This log will go through all loaded filters and output plugins");
+   ```
+
+   ```python
+   # Loading plugins in Python
+   from logloom import initialize_plugins, load_plugins
+   
+   initialize_plugins(plugin_dir="./plugins", config_path="./plugin_config.json")
+   load_plugins()
+   ```
+
+2. **Custom Log Formats**
+
+   ```c
+   // Set custom format (if supported)
+   log_set_format("[%level%][%time%] %message%");
+   ```
+
+3. **Multi-threaded Environment**
+
+   Logloom is thread-safe and requires no additional locking:
+
+   ```c
+   // Log from any thread
+   log_info("Thread %d is processing task %s", thread_id, task_name);
    ```
 
 ### Running the Demo
@@ -252,7 +469,7 @@ make demo
 ./demo
 ```
 
-Check the generated log file or console output.
+Check the generated log file (`logloom.log`) or console output.
 
 ---
 
