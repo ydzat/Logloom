@@ -1,4 +1,4 @@
-# Logloom (MVP)
+# Logloom
 
 Change Language: [CN](./README.md)
 

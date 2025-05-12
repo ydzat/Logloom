@@ -1,4 +1,4 @@
-# Logloom (MVP)
+# Logloom
 
 更换语言：[EN](./README_EN.md)
 
