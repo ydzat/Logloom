@@ -1,0 +1,2 @@
+[console_scripts]
+logloom-plugin-manager = logloom_py.plugin.manager:main

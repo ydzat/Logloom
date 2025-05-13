@@ -215,644 +215,298 @@ char* lang_getf(const char* key, ...) {
 
 ## C API参考
 
-### 初始化与配置
+### 国际化模块 (lang.h)
 
-#### `int log_init(void)`
-初始化日志系统。
+#### 数据结构
 
-**参数**：无
-
-**返回值**：
-- `0`：初始化成功
-- 非零值：初始化失败
-
-**示例**：
 ```c
-if (log_init() != 0) {
-    fprintf(stderr, "Failed to initialize logging system\n");
-    return -1;
-}
+// 语言表项结构
+typedef struct {
+    const char* key;   // 语言键
+    const char* value; // 翻译文本
+} lang_entry_t;
 ```
 
-#### `int logloom_config_init(const char* config_path)`
-从配置文件初始化Logloom系统。
+#### 函数
 
-**参数**：
-- `config_path`：配置YAML文件的路径
+| 函数 | 说明 |
+|------|------|
+| `int lang_init(const char* default_lang)` | 初始化语言模块，设置默认语言代码 |
+| `bool lang_set_language(const char* lang_code)` | 设置当前语言，成功返回true，失败返回false |
+| `const char* lang_get(const char* key)` | 获取指定key的不带格式化的文本，未找到则返回NULL |
+| `char* lang_getf(const char* key, ...)` | 获取带格式化插值的文本，返回动态分配的内存，需调用者释放 |
+| `const char* lang_get_current()` | 获取当前设置的语言代码 |
+| `void lang_cleanup()` | 清理语言模块资源 |
 
-**返回值**：
-- `0`：初始化成功
-- 非零值：初始化失败
+### 日志系统 (log.h)
 
-**示例**：
+#### 数据结构
+
 ```c
-if (logloom_config_init("./config.yaml") != 0) {
-    fprintf(stderr, "Failed to load configuration\n");
-    return -1;
-}
+// 日志级别定义
+typedef enum {
+    LOG_LEVEL_DEBUG = 0,
+    LOG_LEVEL_INFO  = 1,
+    LOG_LEVEL_WARN  = 2,
+    LOG_LEVEL_ERROR = 3,
+    LOG_LEVEL_FATAL = 4
+} log_level_t;
+
+// 日志条目结构
+typedef struct {
+    unsigned long timestamp;  // Unix 时间戳
+    log_level_t level;        // 日志级别
+    const char* module;       // 模块名称
+    const char* message;      // 日志消息
+    const char* lang_key;     // 对应的语言键（可选）
+} log_entry_t;
 ```
 
-#### `void log_set_level(log_level_t level)`
-设置全局日志级别。
+#### 函数
 
-**参数**：
-- `level`：日志级别，可选值：
-  - `LOG_LEVEL_DEBUG`
-  - `LOG_LEVEL_INFO`
-  - `LOG_LEVEL_WARN`
-  - `LOG_LEVEL_ERROR`
-  - `LOG_LEVEL_FATAL`
+| 函数 | 说明 |
+|------|------|
+| `int log_init(const char* level, const char* log_file)` | 初始化日志系统，设置初始日志级别和日志文件 |
+| `void log_set_file(const char* filepath)` | 设置日志输出文件路径，NULL表示禁用文件输出 |
+| `void log_set_level(const char* level)` | 设置日志级别，参数为级别字符串("DEBUG", "INFO", "WARN", "ERROR", "FATAL") |
+| `int log_level_from_string(const char* level)` | 从字符串获取日志级别枚举值 |
+| `const char* log_level_to_string(int level)` | 将日志级别枚举值转换为字符串 |
+| `const char* log_get_level_string(void)` | 获取当前日志级别的字符串表示 |
+| `void log_set_console_enabled(int enabled)` | 开启/关闭控制台输出 (0=禁用, 1=启用) |
+| `void log_set_max_file_size(size_t max_bytes)` | 设置最大日志文件大小（超过后自动轮转） |
+| `void log_set_max_backup_files(size_t count)` | 设置最大历史日志文件数量 |
+| `size_t log_get_max_backup_files(void)` | 获取最大历史日志文件数量 |
+| `bool log_rotate_now(void)` | 手动触发日志文件轮转 |
+| `void log_debug(const char* module, const char* format, ...)` | 输出调试级别日志 |
+| `void log_info(const char* module, const char* format, ...)` | 输出信息级别日志 |
+| `void log_warn(const char* module, const char* format, ...)` | 输出警告级别日志 |
+| `void log_error(const char* module, const char* format, ...)` | 输出错误级别日志 |
+| `void log_fatal(const char* module, const char* format, ...)` | 输出严重错误级别日志 |
+| `void log_with_lang(log_level_t level, const char* module, const char* lang_key, ...)` | 使用语言键输出国际化日志 |
+| `int log_get_level(void)` | 获取当前日志级别枚举值 |
+| `bool log_is_console_enabled(void)` | 检查控制台输出是否启用 |
+| `const char* log_get_file_path(void)` | 获取当前日志文件路径，未设置则返回NULL |
+| `size_t log_get_max_file_size(void)` | 获取最大日志文件大小（字节） |
+| `void log_cleanup(void)` | 清理日志系统资源 |
+| `void log_lock(void)` | 显式加锁日志系统（用于连续多条日志或事务） |
+| `void log_unlock(void)` | 解锁日志系统 |
 
-**返回值**：无
+### 配置系统 (config.h)
 
-**示例**：
+#### 函数
+
+| 函数 | 说明 |
+|------|------|
+| `int config_init(const char* config_file)` | 初始化配置系统并加载指定的配置文件 |
+| `const char* config_get_string(const char* key, const char* default_value)` | 获取字符串配置项，未找到则返回默认值 |
+| `int config_get_int(const char* key, int default_value)` | 获取整数配置项，未找到则返回默认值 |
+| `float config_get_float(const char* key, float default_value)` | 获取浮点数配置项，未找到则返回默认值 |
+| `int config_get_bool(const char* key, int default_value)` | 获取布尔配置项，未找到则返回默认值 |
+| `void config_cleanup(void)` | 清理配置系统资源 |
+
+### 插件系统 (plugin.h)
+
+#### 数据结构
+
 ```c
-log_set_level(LOG_LEVEL_INFO); // 只记录INFO及以上级别的日志
+// 插件操作结构
+typedef struct {
+    void* (*init)(void);  // 插件初始化函数
+    void (*process)(void* ctx, log_entry_t* entry);  // 处理日志条目
+    void (*cleanup)(void* ctx);  // 清理插件资源
+} plugin_ops_t;
+
+// 插件注册结构（面向实现插件的开发者）
+typedef struct {
+    const char* name;     // 插件名称
+    const char* version;  // 插件版本
+    const char* description;  // 插件描述
+    plugin_ops_t ops;     // 插件操作函数
+} plugin_t;
 ```
 
-#### `void log_set_output_file(const char* path)`
-设置日志输出文件。
+#### 函数
 
-**参数**：
-- `path`：日志文件路径
-
-**返回值**：无
-
-**示例**：
-```c
-log_set_output_file("./application.log");
-```
-
-#### `void log_set_max_size(size_t size)`
-设置日志文件最大大小，超过此大小将触发轮转。
-
-**参数**：
-- `size`：最大大小（字节）
-
-**返回值**：无
-
-**示例**：
-```c
-log_set_max_size(1024 * 1024); // 设置最大大小为1MB
-```
-
-### 日志记录
-
-#### `void log_debug(const char* format, ...)`
-记录调试级别的日志消息。
-
-**参数**：
-- `format`：格式化字符串，支持C标准库`printf`格式
-- `...`：变参列表，根据格式化字符串提供值
-
-**返回值**：无
-
-**示例**：
-```c
-log_debug("初始化连接 %s 中", server_address);
-```
-
-#### `void log_info(const char* format, ...)`
-记录信息级别的日志消息。
-
-**参数**：
-- `format`：格式化字符串
-- `...`：变参列表
-
-**返回值**：无
-
-**示例**：
-```c
-log_info("用户 %s 登录成功", username);
-```
-
-#### `void log_warn(const char* format, ...)`
-记录警告级别的日志消息。
-
-**参数**：
-- `format`：格式化字符串
-- `...`：变参列表
-
-**返回值**：无
-
-**示例**：
-```c
-log_warn("尝试访问受限资源: %s", resource_name);
-```
-
-#### `void log_error(const char* format, ...)`
-记录错误级别的日志消息。
-
-**参数**：
-- `format`：格式化字符串
-- `...`：变参列表
-
-**返回值**：无
-
-**示例**：
-```c
-log_error("数据库连接失败: %s", db_error_message);
-```
-
-#### `void log_fatal(const char* format, ...)`
-记录致命错误级别的日志消息。
-
-**参数**：
-- `format`：格式化字符串
-- `...`：变参列表
-
-**返回值**：无
-
-**示例**：
-```c
-log_fatal("内存分配失败，程序无法继续执行");
-```
-
-### 国际化支持
-
-#### `void lang_set_language(const char* lang_code)`
-设置当前使用的语言。
-
-**参数**：
-- `lang_code`：语言代码，如"zh"或"en"
-
-**返回值**：无
-
-**示例**：
-```c
-lang_set_language("zh"); // 设置为中文
-```
-
-#### `const char* lang_get(const char* key)`
-获取指定键的翻译文本。
-
-**参数**：
-- `key`：文本键，例如"system.start_message"
-
-**返回值**：
-- 找到的翻译文本
-- 找不到时返回原始键
-
-**示例**：
-```c
-const char* welcome_msg = lang_get(LOGLOOM_LANG_SYSTEM_WELCOME);
-printf("%s\n", welcome_msg);
-```
-
-#### `char* lang_getf(const char* key, ...)`
-获取带格式化参数的翻译文本。
-
-**参数**：
-- `key`：文本键
-- `...`：格式化参数
-
-**返回值**：
-- 格式化后的翻译文本（需要调用者释放内存）
-- NULL（如果执行失败）
-
-**示例**：
-```c
-char* msg = lang_getf(LOGLOOM_LANG_SYSTEM_ERROR_MESSAGE, "连接超时");
-printf("%s\n", msg);
-free(msg); // 记得释放内存
-```
-
-### 插件系统
-
-#### `int plugin_init(void)`
-初始化插件系统。
-
-**参数**：无
-
-**返回值**：
-- `0`：初始化成功
-- 非零值：初始化失败
-
-**示例**：
-```c
-if (plugin_init() != 0) {
-    log_error("插件系统初始化失败");
-}
-```
-
-#### `int plugin_load_directory(const char* path)`
-加载指定目录中的所有插件。
-
-**参数**：
-- `path`：插件目录路径
-
-**返回值**：
-- 成功加载的插件数量
-- 负值表示发生错误
-
-**示例**：
-```c
-int loaded = plugin_load_directory("./plugins");
-log_info("成功加载 %d 个插件", loaded);
-```
-
-### 资源清理
-
-#### `void log_cleanup(void)`
-清理日志系统资源。
-
-**参数**：无
-
-**返回值**：无
-
-**示例**：
-```c
-log_cleanup(); // 在程序结束前调用
-```
-
-#### `void plugin_cleanup(void)`
-清理插件系统资源。
-
-**参数**：无
-
-**返回值**：无
-
-**示例**：
-```c
-plugin_cleanup(); // 在程序结束前调用
-```
+| 函数 | 说明 |
+|------|------|
+| `int plugin_init(void)` | 初始化插件系统 |
+| `int plugin_register(plugin_t* plugin)` | 注册插件 |
+| `int plugin_load(const char* path)` | 从指定路径加载单个插件 |
+| `int plugin_load_directory(const char* path)` | 从指定目录加载所有插件 |
+| `void plugin_process(log_entry_t* entry)` | 使用所有插件处理日志条目 |
+| `void plugin_cleanup(void)` | 清理插件系统资源 |
 
 ---
 
 ## Python API参考
 
-### 初始化与配置
+Python API通过C扩展提供，主要类和函数如下：
 
-#### `initialize(config_path=None)`
-初始化Logloom系统。
+### Logger类
 
-**参数**：
-- `config_path`：配置YAML文件路径（可选）
+方法:
 
-**返回值**：
-- `True`：初始化成功
-- `False`：初始化失败
+| 方法 | 说明 |
+|------|------|
+| `Logger(module_name)` | 创建指定模块的日志记录器 |
+| `set_level(level)` | 设置日志级别(LogLevel枚举) |
+| `set_file(file_path)` | 设置日志文件路径 |
+| `set_console_enabled(enabled)` | 启用/禁用控制台输出 |
+| `set_rotation_size(max_bytes)` | 设置日志文件轮转大小 |
+| `set_max_backup_files(count)` | 设置最大历史日志文件数 |
+| `debug(message, *args, **kwargs)` | 记录调试级别日志 |
+| `info(message, *args, **kwargs)` | 记录信息级别日志 |
+| `warning(message, *args, **kwargs)` | 记录警告级别日志 |
+| `error(message, *args, **kwargs)` | 记录错误级别日志 |
+| `critical(message, *args, **kwargs)` | 记录严重错误级别日志 |
 
-**示例**：
+### Internationalization (I18n)
+
+函数:
+
+| 函数 | 说明 |
+|------|------|
+| `set_language(language_code)` | 设置当前语言，如"en", "zh" |
+| `get_current_language()` | 获取当前语言代码 |
+| `get_text(key)` | 获取指定键的文本 |
+| `format_text(key, *args, **kwargs)` | 获取指定键的格式化文本 |
+
+### 配置管理
+
+函数:
+
+| 函数 | 说明 |
+|------|------|
+| `initialize(config_path)` | 使用配置文件初始化Logloom系统 |
+| `get_config_string(key, default_value)` | 获取字符串配置 |
+| `get_config_int(key, default_value)` | 获取整数配置 |
+| `get_config_float(key, default_value)` | 获取浮点数配置 |
+| `get_config_bool(key, default_value)` | 获取布尔值配置 |
+
+### 枚举类型
+
 ```python
-from logloom import initialize
-
-if not initialize("./config.yaml"):
-    print("Failed to initialize Logloom")
-    exit(1)
+class LogLevel:
+    DEBUG = 0
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+    CRITICAL = 4
 ```
 
-#### `cleanup()`
-清理Logloom系统资源。
+### 示例用法
 
-**参数**：无
-
-**返回值**：无
-
-**示例**：
 ```python
-from logloom import cleanup
+import logloom_py as ll
 
-# 程序结束前
-cleanup()
-```
+# 初始化系统
+ll.initialize("./config.yaml")
 
-### 日志记录
+# 设置语言
+ll.set_language("zh")
 
-#### `class LogLevel`
-日志级别枚举。
-
-**属性**：
-- `DEBUG`
-- `INFO`
-- `WARNING` (别名 `WARN`)
-- `ERROR`
-- `CRITICAL` (别名 `FATAL`)
-
-**示例**：
-```python
-from logloom import LogLevel
-
-level = LogLevel.INFO
-```
-
-#### `class Logger`
-记录器类，用于记录日志。
-
-**方法**：
-
-##### `__init__(name)`
-创建一个新的记录器。
-
-**参数**：
-- `name`：记录器名称
-
-**示例**：
-```python
-from logloom import Logger
-
-logger = Logger("my_module")
-```
-
-##### `set_level(level)`
-设置此记录器的日志级别。
-
-**参数**：
-- `level`：日志级别 (使用LogLevel枚举)
-
-**返回值**：无
-
-**示例**：
-```python
-logger.set_level(LogLevel.DEBUG)
-```
-
-##### `set_file(path)`
-设置此记录器的输出文件。
-
-**参数**：
-- `path`：日志文件路径
-
-**返回值**：无
-
-**示例**：
-```python
-logger.set_file("./module.log")
-```
-
-##### `set_rotation_size(size)`
-设置日志文件轮转大小。
-
-**参数**：
-- `size`：最大大小（字节）
-
-**返回值**：无
-
-**示例**：
-```python
+# 创建日志记录器
+logger = ll.Logger("main")
+logger.set_level(ll.LogLevel.DEBUG)
+logger.set_file("app.log")
 logger.set_rotation_size(1024 * 1024)  # 1MB
-```
 
-##### `debug(msg, *args, **kwargs)`
-记录调试级别的消息。
-
-**参数**：
-- `msg`：消息模板
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-
-**返回值**：无
-
-**示例**：
-```python
-logger.debug("初始化连接 {}", server_address)
-logger.debug("用户 {user} 访问 {resource}", user="admin", resource="/api/data")
-```
-
-##### `info(msg, *args, **kwargs)`
-记录信息级别的消息。
-
-**参数**：
-- `msg`：消息模板
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-
-**返回值**：无
-
-**示例**：
-```python
-logger.info("处理请求 #{}", request_id)
-```
-
-##### `warning(msg, *args, **kwargs)` / `warn(msg, *args, **kwargs)`
-记录警告级别的消息。
-
-**参数**：
-- `msg`：消息模板
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-
-**返回值**：无
-
-**示例**：
-```python
-logger.warning("高CPU使用率: {}%", cpu_usage)
-```
-
-##### `error(msg, *args, **kwargs)`
-记录错误级别的消息。
-
-**参数**：
-- `msg`：消息模板
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-
-**返回值**：无
-
-**示例**：
-```python
-logger.error("请求处理失败: {}", error_message)
-```
-
-##### `critical(msg, *args, **kwargs)` / `fatal(msg, *args, **kwargs)`
-记录严重错误级别的消息。
-
-**参数**：
-- `msg`：消息模板
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-
-**返回值**：无
-
-**示例**：
-```python
-logger.critical("系统崩溃，无法恢复: {}", error_code)
-```
-
-### 国际化支持
-
-#### `set_language(lang_code)`
-设置当前使用的语言。
-
-**参数**：
-- `lang_code`：语言代码，如"zh"或"en"
-
-**返回值**：
-- `True`：设置成功
-- `False`：设置失败
-
-**示例**：
-```python
-from logloom import set_language
-
-set_language("en")  # 设置为英文
-```
-
-#### `get_text(key, lang=None)`
-获取指定键的翻译文本。
-
-**参数**：
-- `key`：文本键
-- `lang`：可选的语言代码，如不指定则使用当前语言
-
-**返回值**：
-- 翻译后的文本
-- 找不到时返回原始键
-
-**示例**：
-```python
-from logloom import get_text
-
-welcome = get_text("welcome")
-chinese_text = get_text("welcome", "zh")
-```
-
-#### `format_text(key, *args, **kwargs)`
-获取带格式化参数的翻译文本。
-
-**参数**：
-- `key`：文本键
-- `*args`：位置参数
-- `**kwargs`：关键字参数
-  - 可使用`lang`关键字参数指定语言
-
-**返回值**：
-- 格式化后的翻译文本
-
-**示例**：
-```python
-from logloom import format_text
-
-error_msg = format_text("error.file_not_found", "/config.json")
-welcome_msg = format_text("welcome.user", name="John", lang="en")
-```
-
-### 插件系统
-
-#### `initialize_plugins(plugin_dir=None, config_path=None)`
-初始化插件系统。
-
-**参数**：
-- `plugin_dir`：插件目录路径（可选）
-- `config_path`：插件配置文件路径（可选）
-
-**返回值**：
-- `True`：初始化成功
-- `False`：初始化失败
-
-**示例**：
-```python
-from logloom import initialize_plugins
-
-initialize_plugins(plugin_dir="./plugins", config_path="./plugin_config.json")
-```
-
-#### `load_plugins()`
-加载已配置目录中的插件。
-
-**参数**：无
-
-**返回值**：
-- 已加载的插件数量
-
-**示例**：
-```python
-from logloom import load_plugins
-
-count = load_plugins()
-print(f"已加载 {count} 个插件")
-```
-
-#### `filter_log(log_entry)`
-通过过滤器插件筛选日志条目。
-
-**参数**：
-- `log_entry`：日志条目对象
-
-**返回值**：
-- `True`：条目通过筛选
-- `False`：条目被过滤掉
-
-**示例**：
-```python
-from logloom import filter_log, LogEntry
-
-entry = LogEntry(level=2, message="测试消息", module="test")
-if filter_log(entry):
-    # 处理通过过滤的日志
-    pass
-```
-
-#### `sink_log(log_entry)`
-将日志条目发送到输出插件。
-
-**参数**：
-- `log_entry`：日志条目对象
-
-**返回值**：
-- `True`：成功输出
-- `False`：输出失败
-
-**示例**：
-```python
-from logloom import sink_log, LogEntry
-
-entry = LogEntry(level=1, message="信息消息", module="info")
-sink_log(entry)
-```
-
-#### `unload_plugins()`
-卸载所有插件。
-
-**参数**：无
-
-**返回值**：无
-
-**示例**：
-```python
-from logloom import unload_plugins
-
-unload_plugins()
-```
-
-#### `shutdown_plugins()`
-关闭插件系统。
-
-**参数**：无
-
-**返回值**：无
-
-**示例**：
-```python
-from logloom import shutdown_plugins
-
-shutdown_plugins()
+# 记录日志
+logger.info("应用启动")
+logger.debug("调试信息: {}", "测试")
+logger.warning("警告信息: {msg}", msg="发现异常")
+
+# 使用国际化文本
+welcome = ll.format_text("welcome", name="张三")
+logger.info(welcome)
 ```
 
 ---
 
-## API最佳实践
+## 插件开发参考
 
-### 性能优化
+### C插件接口
 
-1. **日志级别过滤**：在高性能环境中，应使用适当的日志级别，避免低级别日志（如DEBUG）影响系统性能
-2. **文件轮转**：为长时间运行的应用设置合理的日志文件轮转大小
-3. **格式化开销**：`lang_getf`和`format_text`会产生内存分配和格式化开销，请谨慎在关键性能路径上使用
+开发C语言插件需要实现以下结构：
 
-### 多线程安全性
+```c
+#include <logloom/plugin.h>
+#include <logloom/log.h>
 
-Logloom的所有API都是线程安全的，可以在多线程环境中使用。但插件加载/卸载操作推荐在单线程上下文中执行。
+// 插件上下文结构（自定义）
+typedef struct {
+    // 插件私有数据
+} my_plugin_ctx_t;
 
-### 内存管理
+// 初始化函数
+void* my_plugin_init(void) {
+    my_plugin_ctx_t* ctx = malloc(sizeof(my_plugin_ctx_t));
+    // 初始化上下文
+    return ctx;
+}
 
-1. **C API中的内存释放**：`lang_getf`返回的字符串需要由调用者使用`free()`释放
-2. **Python API**：自动处理内存管理，无需手动释放
+// 处理函数
+void my_plugin_process(void* ctx, log_entry_t* entry) {
+    my_plugin_ctx_t* my_ctx = (my_plugin_ctx_t*)ctx;
+    // 处理日志条目
+}
 
-### 插件开发
+// 清理函数
+void my_plugin_cleanup(void* ctx) {
+    my_plugin_ctx_t* my_ctx = (my_plugin_ctx_t*)ctx;
+    // 清理资源
+    free(ctx);
+}
 
-开发插件时，请确保：
-1. 实现所有必需的接口：`init`、`process`、`shutdown`
-2. 正确处理错误并返回适当的结果代码
-3. 避免在插件中执行阻塞操作
-4. 在`shutdown`函数中释放所有分配的资源
+// 插件注册
+plugin_t my_plugin = {
+    .name = "my_plugin",
+    .version = "1.0.0",
+    .description = "这是一个示例插件",
+    .ops = {
+        .init = my_plugin_init,
+        .process = my_plugin_process,
+        .cleanup = my_plugin_cleanup
+    }
+};
+
+// 导出插件（必须使用此名称和签名）
+plugin_t* logloom_plugin_init(void) {
+    return &my_plugin;
+}
+```
+
+### Python插件接口
+
+Python插件应继承基础插件类并实现所需方法：
+
+```python
+from logloom.plugin import LogPlugin
+
+class MyPlugin(LogPlugin):
+    def __init__(self):
+        # 初始化插件
+        pass
+        
+    def process(self, log_entry):
+        # 处理日志条目
+        # log_entry是包含timestamp, level, module, message等字段的字典
+        pass
+        
+    def cleanup(self):
+        # 清理资源
+        pass
+```
+
+插件文件应放在插件目录中，并通过`plugin_info.json`注册：
+
+```json
+{
+    "name": "my_plugin",
+    "version": "1.0.0",
+    "description": "这是一个Python示例插件",
+    "module": "my_plugin", 
+    "class": "MyPlugin"
+}
+```
 

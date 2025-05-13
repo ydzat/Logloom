@@ -361,6 +361,15 @@ class Logger:
                         except (OSError, IOError) as e:
                             print(f"[WARNING] 设置日志文件失败 - 无法创建目录 {log_dir}: {e}")
                             return False
+                
+                # 确保文件可以被创建 - 尝试写入一次以创建文件
+                try:
+                    # 打开文件创建它（如果尚不存在）
+                    with open(file_path, 'a', encoding='utf-8') as f:
+                        pass  # 只创建文件，不写入内容
+                except (OSError, IOError) as e:
+                    print(f"[WARNING] 无法创建日志文件 {file_path}: {e}")
+                    return False
             
             # 保存新的文件路径
             self._log_file = file_path

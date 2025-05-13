@@ -5,13 +5,431 @@ Logloom Python Package
 A Python interface for the Logloom logging and internationalization library.
 """
 
-# 从 logloom_py 中导入所有 API
+import sys
+import os
+import enum
+from importlib.machinery import ExtensionFileLoader
+from importlib.util import spec_from_file_location, module_from_spec
+
+# 全局变量，用于纯Python实现
+_current_language = "en"  # 默认语言
+_mock_texts = {
+    # 英文文本
+    "en": {
+        "system.welcome": "Welcome to Logloom logging system",
+        "system.start_message": "System started",
+        "system.shutdown_message": "System shutting down",
+        "system.error_message": "Error occurred: {0}",
+        "error.file_not_found": "File not found: {0}",
+        "error.invalid_value": "Invalid value: {value}, expected: {expected}",
+        "test.hello": "Hello, {0}!",
+        "test.error_count": "Encountered {0} errors"
+    },
+    # 中文文本
+    "zh": {
+        "system.welcome": "欢迎使用Logloom日志系统",
+        "system.start_message": "系统启动",
+        "system.shutdown_message": "系统正在关闭",
+        "system.error_message": "发生错误：{0}",
+        "error.file_not_found": "找不到文件: {0}",
+        "error.invalid_value": "无效的值: {value}，期望: {expected}",
+        "test.hello": "你好，{0}！",
+        "test.error_count": "遇到了 {0} 个错误"
+    }
+}
+
+# 尝试直接导入编译好的C扩展模块
+_c_module = None
 try:
-    from logloom_py import *
-except ImportError:
-    # 在安装之前可能无法导入，所以这里我们提供一个提示
-    import sys
-    sys.stderr.write("Warning: logloom_py module not found. Make sure Logloom is properly installed.\n")
+    # 查找扩展模块
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    
+    # 查找.so文件（在Linux/Mac上）或.pyd文件（在Windows上）
+    for dirpath, _, filenames in os.walk(parent_dir):
+        for filename in filenames:
+            if (filename.startswith('logloom') and 
+                (filename.endswith('.so') or filename.endswith('.pyd'))):
+                ext_path = os.path.join(dirpath, filename)
+                try:
+                    # 动态加载扩展模块
+                    spec = spec_from_file_location('_logloom_c', ext_path)
+                    if spec:
+                        _c_module = module_from_spec(spec)
+                        spec.loader.exec_module(_c_module)
+                        # 导入成功，跳出循环
+                        break
+                except Exception:
+                    continue
+        if _c_module:
+            break
+except Exception as e:
+    sys.stderr.write(f"Warning: Failed to import C extension module: {e}\n")
+
+# 如果找到C扩展模块，从中导入所有功能
+if _c_module:
+    # 导入C扩展模块中定义的所有函数和变量
+    for attr_name in dir(_c_module):
+        if not attr_name.startswith('_'):  # 跳过内部/私有属性
+            globals()[attr_name] = getattr(_c_module, attr_name)
+            
+            # 为导入的函数添加文档字符串（如果原函数没有）
+            if callable(globals()[attr_name]) and globals()[attr_name].__doc__ is None:
+                if attr_name == 'debug':
+                    globals()[attr_name].__doc__ = "记录调试级别的日志消息"
+                elif attr_name == 'info':
+                    globals()[attr_name].__doc__ = "记录信息级别的日志消息"
+                elif attr_name == 'warn':
+                    globals()[attr_name].__doc__ = "记录警告级别的日志消息"
+                elif attr_name == 'error':
+                    globals()[attr_name].__doc__ = "记录错误级别的日志消息"
+                elif attr_name == 'fatal':
+                    globals()[attr_name].__doc__ = "记录致命错误级别的日志消息"
+                elif attr_name == 'set_log_level':
+                    globals()[attr_name].__doc__ = "设置全局日志级别"
+                elif attr_name == 'set_log_file':
+                    globals()[attr_name].__doc__ = "设置日志输出文件路径"
+                elif attr_name == 'set_log_max_size':
+                    globals()[attr_name].__doc__ = "设置日志文件最大大小"
+                elif attr_name == 'set_output_console':
+                    globals()[attr_name].__doc__ = "设置是否输出到控制台"
+                elif attr_name == 'set_language':
+                    globals()[attr_name].__doc__ = "设置当前使用的语言"
+                elif attr_name == 'get_current_language':
+                    globals()[attr_name].__doc__ = "获取当前使用的语言代码"
+                elif attr_name == 'get_text':
+                    globals()[attr_name].__doc__ = "获取指定键的翻译文本"
+                elif attr_name == 'format_text':
+                    globals()[attr_name].__doc__ = "格式化指定键的翻译文本"
+                elif attr_name == 'initialize':
+                    globals()[attr_name].__doc__ = "初始化Logloom系统"
+                elif attr_name == 'cleanup':
+                    globals()[attr_name].__doc__ = "清理Logloom系统资源"
+                else:
+                    globals()[attr_name].__doc__ = f"{attr_name} API函数"
+else:
+    # 没有找到C扩展模块，提供纯Python实现的基本功能
+    sys.stderr.write("Warning: Using pure Python implementation (limited functionality)\n")
+    
+    # 基本日志级别定义
+    class LogLevel(enum.Enum):
+        """日志级别枚举，用于指定日志记录的严重程度"""
+        DEBUG = "DEBUG"
+        INFO = "INFO"
+        WARN = "WARN"
+        ERROR = "ERROR"
+        FATAL = "FATAL"
+    
+    # 全局变量，用于纯Python实现
+    _current_log_level = "INFO"
+    _log_file = None
+    _log_max_size = 1048576  # 1MB
+    _console_enabled = True
+    
+    # 基本日志函数
+    def debug(module, message): 
+        """记录调试级别的日志消息"""
+        if _current_log_level == "DEBUG":
+            _log_message("DEBUG", module, message)
+    
+    def info(module, message): 
+        """记录信息级别的日志消息"""
+        if _current_log_level in ["DEBUG", "INFO"]:
+            _log_message("INFO", module, message)
+    
+    def warn(module, message): 
+        """记录警告级别的日志消息"""
+        if _current_log_level in ["DEBUG", "INFO", "WARN"]:
+            _log_message("WARN", module, message)
+    
+    def error(module, message): 
+        """记录错误级别的日志消息"""
+        if _current_log_level in ["DEBUG", "INFO", "WARN", "ERROR"]:
+            _log_message("ERROR", module, message)
+    
+    def fatal(module, message): 
+        """记录致命错误级别的日志消息"""
+        # 致命错误总是记录
+        _log_message("FATAL", module, message)
+    
+    def _log_message(level, module, message):
+        """内部函数，记录日志消息"""
+        import time
+        
+        # 格式化日志行
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_line = f"[{timestamp}][{level}][{module}] {message}\n"
+        
+        # 如果启用控制台输出，打印到控制台
+        if _console_enabled:
+            print(log_line, end='')
+        
+        # 如果设置了日志文件，写入文件
+        if _log_file:
+            try:
+                with open(_log_file, 'a', encoding='utf-8') as f:
+                    f.write(log_line)
+            except Exception as e:
+                print(f"[ERROR] 无法写入日志文件: {e}")
+    
+    # 配置函数
+    def set_log_level(level):
+        """设置日志级别"""
+        global _current_log_level
+        
+        # 如果是枚举类型，提取值
+        if hasattr(level, 'value'):
+            level = level.value
+            
+        # 验证级别
+        valid_levels = ["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+        if level not in valid_levels:
+            raise ValueError(f"无效的日志级别: {level}")
+            
+        _current_log_level = level
+        
+        # 同时更新默认logger的级别
+        logger._current_level = level
+        
+        return True
+    
+    def set_log_file(filepath):
+        """设置日志文件"""
+        global _log_file
+        
+        if filepath:
+            # 确保目录存在
+            dir_path = os.path.dirname(filepath)
+            if dir_path:
+                os.makedirs(dir_path, exist_ok=True)
+            
+            # 尝试创建文件
+            with open(filepath, 'a'):
+                pass
+        
+        _log_file = filepath
+        
+        # 更新logger的文件路径
+        logger._log_file = filepath
+        
+        return True
+    
+    def set_log_max_size(size):
+        """设置日志文件最大大小"""
+        global _log_max_size
+        _log_max_size = size
+        return True
+    
+    def set_output_console(enabled):
+        """设置是否输出到控制台"""
+        global _console_enabled
+        _console_enabled = bool(enabled)
+        return True
+    
+    # 国际化函数
+    def set_language(lang_code):
+        """设置当前语言"""
+        global _current_language
+        
+        # 验证语言代码
+        if lang_code not in _mock_texts:
+            print(f"警告：不支持的语言代码 {lang_code}，使用英语")
+            _current_language = "en"
+            return False
+        
+        _current_language = lang_code
+        return True
+    
+    def get_current_language():
+        """获取当前语言"""
+        return _current_language
+    
+    def get_text(key, *args):
+        """获取翻译文本"""
+        # 尝试在当前语言中获取文本
+        text = _mock_texts.get(_current_language, {}).get(key)
+        
+        # 如果找不到，尝试英语
+        if text is None and _current_language != "en":
+            text = _mock_texts.get("en", {}).get(key)
+        
+        # 仍找不到，返回键名
+        if text is None:
+            return key
+        
+        # 应用格式化
+        if args:
+            try:
+                text = text.format(*args)
+            except Exception as e:
+                print(f"警告：格式化文本失败: {e}")
+        
+        return text
+    
+    def format_text(key, *args, **kwargs):
+        """获取并格式化翻译文本"""
+        # 尝试在当前语言中获取文本
+        text = _mock_texts.get(_current_language, {}).get(key)
+        
+        # 如果找不到，尝试英语
+        if text is None and _current_language != "en":
+            text = _mock_texts.get("en", {}).get(key)
+        
+        # 仍找不到，返回键名
+        if text is None:
+            return key
+        
+        # 应用格式化
+        try:
+            if kwargs:
+                text = text.format(**kwargs)
+            elif args:
+                text = text.format(*args)
+        except Exception as e:
+            print(f"警告：格式化文本失败: {e}")
+        
+        return text
+
+# 导入Logger类用于面向对象的API
+from .logger import Logger
+
+# 创建默认日志记录器实例
+logger = Logger("default")
+
+# 保存临时配置文件的路径，用于清理
+_temp_config_path = None
+
+def initialize(config=None):
+    """
+    初始化Logloom
+    
+    Parameters:
+    -----------
+    config : str, dict, optional
+        配置文件路径或配置字典。如果是字典，将转换为临时YAML文件
+    
+    Returns:
+    --------
+    bool
+        初始化是否成功
+    """
+    global _temp_config_path, _current_language
+    
+    # 处理字典类型的配置
+    config_path = None
+    if isinstance(config, dict):
+        try:
+            import tempfile
+            import yaml
+            
+            # 将字典转为临时YAML文件
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
+                yaml.dump(config, temp_file)
+                config_path = temp_file.name
+            
+            # 记录临时文件路径以便清理
+            _temp_config_path = config_path
+            
+            # 输出调试信息
+            print(f"[DEBUG] 已创建临时配置文件: {config_path}")
+            
+            # 直接应用字典配置
+            try:
+                # 获取日志级别
+                log_level = config.get('logloom', {}).get('log', {}).get('level')
+                if log_level:
+                    set_log_level(log_level)
+                
+                # 获取日志文件
+                log_file = config.get('logloom', {}).get('log', {}).get('file')
+                if log_file:
+                    set_log_file(log_file)
+                
+                # 获取语言设置
+                language = config.get('logloom', {}).get('language')
+                if language:
+                    set_language(language)
+            except Exception as e:
+                print(f"[ERROR] 应用配置失败: {e}")
+                
+        except ImportError:
+            print("[ERROR] 处理配置字典需要PyYAML模块，请安装: pip install pyyaml")
+            return False
+        except Exception as e:
+            print(f"[ERROR] 无法创建临时配置文件: {e}")
+            return False
+    elif config is not None:
+        # 字符串路径
+        config_path = config
+    
+    # 调用C扩展模块初始化
+    if _c_module and hasattr(_c_module, 'initialize'):
+        try:
+            return _c_module.initialize(config_path or "")
+        except Exception as e:
+            print(f"[ERROR] 使用C扩展模块初始化失败: {e}")
+    
+    # 如果没有C扩展模块或初始化失败，使用纯Python实现的简单初始化
+    print("[INFO] 使用纯Python实现初始化Logloom")
+    
+    # 如果提供了配置文件路径，尝试解析
+    if config_path and not isinstance(config, dict):  # 如果是字典类型，前面已经处理过了
+        try:
+            import yaml
+            with open(config_path, 'r') as f:
+                yaml_config = yaml.safe_load(f)
+            
+            # 应用基本配置
+            if yaml_config and isinstance(yaml_config, dict):
+                # 获取日志级别
+                log_level = yaml_config.get('logloom', {}).get('log', {}).get('level')
+                if log_level:
+                    set_log_level(log_level)
+                
+                # 获取日志文件
+                log_file = yaml_config.get('logloom', {}).get('log', {}).get('file')
+                if log_file:
+                    set_log_file(log_file)
+                
+                # 获取语言设置
+                language = yaml_config.get('logloom', {}).get('language')
+                if language:
+                    set_language(language)
+        except ImportError:
+            print("[WARNING] 解析YAML配置需要PyYAML模块")
+        except Exception as e:
+            print(f"[ERROR] 解析配置文件失败: {e}")
+    
+    return True
+
+def cleanup():
+    """
+    清理Logloom资源
+    
+    Returns:
+    --------
+    bool
+        清理是否成功
+    """
+    global _temp_config_path
+    
+    # 调用C扩展模块清理
+    if _c_module and hasattr(_c_module, 'cleanup'):
+        try:
+            _c_module.cleanup()
+        except Exception as e:
+            print(f"[WARNING] 清理Logloom资源失败: {e}")
+    
+    # 删除临时配置文件（如果存在）
+    if _temp_config_path and os.path.exists(_temp_config_path):
+        try:
+            os.unlink(_temp_config_path)
+            _temp_config_path = None
+            print("[DEBUG] 已删除临时配置文件")
+        except Exception as e:
+            print(f"[WARNING] 无法删除临时配置文件: {e}")
+    
+    return True
 
 # 版本信息
 __version__ = '0.1.0'

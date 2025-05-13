@@ -43,11 +43,12 @@ static PyObject* logloom_lang_get(PyObject* self, PyObject* args) {
 }
 
 // 格式化语言字符串的包装函数
-static PyObject* logloom_lang_getf(PyObject* self, PyObject* args) {
-    const char* key;
-    PyObject* format_args;
+static PyObject* logloom_lang_getf(PyObject* self, PyObject* args, PyObject* kwargs) {
+    const char* key = NULL;
+    PyObject* pos_args = NULL;
     
-    if (!PyArg_ParseTuple(args, "sO", &key, &format_args))
+    // 先处理位置参数
+    if (!PyArg_ParseTuple(args, "s|O", &key, &pos_args))
         return NULL;
     
     // 获取模板字符串
@@ -63,17 +64,27 @@ static PyObject* logloom_lang_getf(PyObject* self, PyObject* args) {
     if (!formatted)
         return NULL;
     
-    PyObject* result;
-    if (PyTuple_Check(format_args)) {
-        // 使用位置参数格式化
-        result = PyUnicode_Format(formatted, format_args);
-    } else if (PyDict_Check(format_args)) {
-        // 使用关键字参数格式化
-        result = PyUnicode_Format(formatted, format_args);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Format arguments must be a tuple or a dict");
-        Py_DECREF(formatted);
-        return NULL;
+    PyObject* result = NULL;
+    
+    // 处理格式化逻辑：先看是否有位置参数
+    if (pos_args && pos_args != Py_None) {
+        // 确保是元组
+        if (!PyTuple_Check(pos_args)) {
+            pos_args = Py_BuildValue("(O)", pos_args);
+            result = PyUnicode_Format(formatted, pos_args);
+            Py_DECREF(pos_args);
+        } else {
+            result = PyUnicode_Format(formatted, pos_args);
+        }
+    } 
+    // 处理关键字参数
+    else if (kwargs && PyDict_Size(kwargs) > 0) {
+        result = PyUnicode_Format(formatted, kwargs);
+    } 
+    // 没有格式参数，直接返回
+    else {
+        result = formatted;
+        Py_INCREF(result); // 增加引用计数，因为后面会释放formatted
     }
     
     Py_DECREF(formatted);
@@ -120,7 +131,7 @@ static PyObject* logloom_set_language(PyObject* self, PyObject* args) {
 }
 
 // 获取当前语言代码的包装函数
-static PyObject* logloom_get_language(PyObject* self, PyObject* args) {
+static PyObject* logloom_get_language(PyObject* self, PyObject* Py_UNUSED(ignored)) {
     const char* lang_code = lang_get_current();
     if (!lang_code) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to get current language");
@@ -128,6 +139,11 @@ static PyObject* logloom_get_language(PyObject* self, PyObject* args) {
     }
     
     return PyUnicode_FromString(lang_code);
+}
+
+// 为保持API一致性，提供get_current_language别名
+static PyObject* logloom_get_current_language(PyObject* self, PyObject* Py_UNUSED(ignored)) {
+    return logloom_get_language(self, NULL);
 }
 
 // 设置日志文件的包装函数
@@ -176,6 +192,18 @@ static PyObject* logloom_set_log_max_size(PyObject* self, PyObject* args) {
         return NULL;
     
     log_set_max_file_size(max_size);
+    Py_RETURN_NONE;
+}
+
+// 设置控制台输出状态的包装函数
+static PyObject* logloom_set_output_console(PyObject* self, PyObject* args) {
+    int enabled;
+    if (!PyArg_ParseTuple(args, "p", &enabled))
+        return NULL;
+    
+    // 调用C API设置控制台输出状态
+    log_set_console_enabled(enabled ? true : false);
+    
     Py_RETURN_NONE;
 }
 
@@ -253,7 +281,7 @@ static PyObject* logloom_initialize(PyObject* self, PyObject* args) {
 }
 
 // 清理Logloom的包装函数
-static PyObject* logloom_cleanup(PyObject* self, PyObject* args) {
+static PyObject* logloom_cleanup(PyObject* self, PyObject* Py_UNUSED(ignored)) {
     log_cleanup();
     lang_cleanup();
     config_cleanup();
@@ -279,7 +307,7 @@ static PyMethodDef LogloomMethods[] = {
      "Log a fatal message"},
     {"get_text", logloom_lang_get, METH_VARARGS,
      "Get localized text by key"},
-    {"format_text", logloom_lang_getf, METH_VARARGS,
+    {"format_text", (PyCFunction)logloom_lang_getf, METH_VARARGS | METH_KEYWORDS,
      "Format localized text with arguments"},
     {"set_log_level", logloom_set_log_level, METH_VARARGS,
      "Set the log level"},
@@ -287,10 +315,14 @@ static PyMethodDef LogloomMethods[] = {
      "Set the current language"},
     {"get_language", logloom_get_language, METH_NOARGS,
      "Get the current language"},
+    {"get_current_language", logloom_get_current_language, METH_NOARGS,
+     "Get the current language (alias for get_language)"},
     {"set_log_file", logloom_set_log_file, METH_VARARGS,
      "Set the log file path"},
     {"set_log_max_size", logloom_set_log_max_size, METH_VARARGS,
      "Set the maximum log file size"},
+    {"set_output_console", logloom_set_output_console, METH_VARARGS,
+     "Enable or disable console output"},
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 

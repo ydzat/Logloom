@@ -369,18 +369,18 @@ python run_tests.py
 1. **Import Modules**
 
    ```python
-   from logloom import logger, Logger, LogLevel, initialize
+   import logloom_py as ll
    ```
 
 2. **Initialize the System**
 
    ```python
    # Initialize with config file
-   initialize("./config.yaml")
+   ll.initialize("./config.yaml")
    
    # Or configure manually
-   root_logger = Logger("app")
-   root_logger.set_level(LogLevel.DEBUG)
+   root_logger = ll.Logger("app")
+   root_logger.set_level(ll.LogLevel.DEBUG)
    root_logger.set_file("app.log")
    ```
 
@@ -388,12 +388,12 @@ python run_tests.py
 
    ```python
    # Create loggers for specific modules
-   db_logger = Logger("database")
-   auth_logger = Logger("auth")
+   db_logger = ll.Logger("database")
+   auth_logger = ll.Logger("auth")
    
    # Set different log levels
-   db_logger.set_level(LogLevel.INFO)
-   auth_logger.set_level(LogLevel.DEBUG)
+   db_logger.set_level(ll.LogLevel.INFO)
+   auth_logger.set_level(ll.LogLevel.DEBUG)
    
    # Log messages
    db_logger.info("Database connection successful")
@@ -411,17 +411,15 @@ python run_tests.py
 5. **Internationalization Support**
 
    ```python
-   from logloom import set_language, get_text, format_text
-   
    # Set current language
-   set_language("en")  # or "zh"
+   ll.set_language("en")  # or "zh"
    
    # Get translated text
-   welcome_text = get_text("welcome")
+   welcome_text = ll.get_text("welcome")
    
    # Format text with parameters
-   error_text = format_text("error.file_not_found", "/data/config.json")
-   user_text = format_text("user.profile", name="John", age=30)
+   error_text = ll.format_text("error.file_not_found", "/data/config.json")
+   user_text = ll.format_text("user.profile", name="John", age=30)
    ```
 
 ### Advanced Usage
