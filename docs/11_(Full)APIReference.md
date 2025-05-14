@@ -542,57 +542,13 @@ msg2 = ll.format_text("error.invalid_value", value="123", expected="数字")
 # "无效的值: 123，期望: 数字"
 ```
 
-## 插件系统
+### `register_locale_file(file_path, lang_code=None)`
 
-Logloom提供了强大的插件系统，支持动态加载和配置插件。
-
-### `initialize_plugins(plugin_dir=None, config_path=None)`
-
-初始化插件系统。
+注册额外的语言资源文件，实现应用级的翻译扩展。
 
 **参数：**
-- `plugin_dir` (str, 可选)：插件目录路径
-- `config_path` (str, 可选)：插件配置文件路径
-
-**返回值：**
-- `True`：初始化成功
-- `False`：初始化失败
-
-**示例：**
-```python
-import logloom_py as ll
-
-# 初始化插件系统
-ll.initialize_plugins(plugin_dir="./plugins", config_path="./plugin_config.json")
-```
-
-### `load_plugins()`
-
-加载所有可用插件。
-
-**参数：** 无
-
-**返回值：**
-- (int)：成功加载的插件数量
-
-**示例：**
-```python
-import logloom_py as ll
-
-# 初始化插件系统
-ll.initialize_plugins("./plugins")
-
-# 加载所有插件
-num_loaded = ll.load_plugins()
-print(f"已加载 {num_loaded} 个插件")
-```
-
-### `register_plugin(plugin_class)`
-
-注册自定义Python插件类。
-
-**参数：**
-- `plugin_class` (class)：符合插件接口的Python类
+- `file_path` (str)：YAML语言资源文件的路径
+- `lang_code` (str, 可选)：语言代码（如果为None，则从文件名推断）
 
 **返回值：**
 - `True`：注册成功
@@ -602,245 +558,71 @@ print(f"已加载 {num_loaded} 个插件")
 ```python
 import logloom_py as ll
 
-# 定义自定义插件类
-class MyLogFilter:
-    def __init__(self, config=None):
-        self.config = config or {}
-    
-    def process(self, log_entry):
-        # 过滤或修改日志条目
-        if "password" in log_entry["message"]:
-            log_entry["message"] = log_entry["message"].replace("password=123456", "password=******")
-        return log_entry
+# 显式指定语言代码
+success = ll.register_locale_file("/path/to/app_translations.yaml", "zh")
 
-# 注册插件
-ll.register_plugin(MyLogFilter)
+# 从文件名推断语言代码（如fr.yaml）
+success = ll.register_locale_file("/path/to/fr.yaml")
 ```
 
-### `get_loaded_plugins()`
+### `register_locale_directory(dir_path, pattern="*.yaml")`
 
-获取已加载的插件列表。
+注册目录中所有匹配模式的语言资源文件。
+
+**参数：**
+- `dir_path` (str)：包含语言资源文件的目录路径
+- `pattern` (str, 可选)：文件匹配模式，默认为"*.yaml"
+
+**返回值：**
+- (int)：成功注册的文件数量
+
+**示例：**
+```python
+import logloom_py as ll
+
+# 注册应用特定的翻译目录
+count = ll.register_locale_directory("/app/translations")
+print(f"已注册 {count} 个语言文件")
+
+# 使用自定义模式
+count = ll.register_locale_directory("/app/i18n", "lang_*.yaml")
+```
+
+### `get_supported_languages()`
+
+获取当前支持的所有语言代码列表。
 
 **参数：** 无
 
 **返回值：**
-- (list)：已加载插件信息的列表
+- (list)：语言代码列表，如 `["en", "zh", "fr"]`
 
 **示例：**
 ```python
 import logloom_py as ll
 
-# 获取已加载插件
-plugins = ll.get_loaded_plugins()
-for plugin in plugins:
-    print(f"插件名: {plugin['name']}, 类型: {plugin['type']}")
+languages = ll.get_supported_languages()
+print(f"支持的语言: {', '.join(languages)}")
 ```
 
-### `enable_plugin(plugin_name, enabled=True)`
+### `get_language_keys(lang_code=None)`
 
-启用或禁用特定插件。
+获取指定语言中所有可用的翻译键列表。
 
 **参数：**
-- `plugin_name` (str)：插件名称
-- `enabled` (bool, 可选)：是否启用，默认为True
+- `lang_code` (str, 可选)：语言代码，默认为当前语言
 
 **返回值：**
-- `True`：操作成功
-- `False`：操作失败
+- (list)：翻译键列表
 
 **示例：**
 ```python
 import logloom_py as ll
 
-# 禁用特定插件
-ll.enable_plugin("sensitive_filter", False)
+# 获取当前语言的所有键
+keys = ll.get_language_keys()
 
-# 重新启用
-ll.enable_plugin("sensitive_filter", True)
+# 获取特定语言的所有键
+zh_keys = ll.get_language_keys("zh")
 ```
-
-## 异常处理
-
-Logloom 库中的异常处理策略。
-
-### 抛出的异常
-
-以下是 Logloom Python 绑定可能抛出的异常：
-
-1. **`ValueError`**：当提供的参数值无效时抛出
-   - 例如：无效的日志级别字符串
-   - 例如：无效的配置值
-
-2. **`IOError`/`OSError`**：当文件操作失败时抛出
-   - 例如：无法创建或写入日志文件
-   - 例如：无法读取配置文件
-
-3. **`ImportError`**：当缺少必要的依赖时抛出
-   - 例如：尝试使用字典配置但缺少 PyYAML 库
-
-4. **`RuntimeError`**：当系统状态无效或操作不允许时抛出
-   - 例如：在初始化前调用功能
-
-### 错误恢复策略
-
-Logloom 采用以下错误恢复策略：
-
-1. **降级处理**：当 C 扩展模块不可用时，自动使用纯 Python 实现
-2. **默认值回退**：当配置错误时，使用合理的默认值
-3. **日志文件处理**：当无法写入日志文件时，输出警告并继续执行
-
-## 配置格式参考
-
-### YAML 配置文件格式
-
-Logloom 配置文件采用 YAML 格式，支持以下配置选项：
-
-```yaml
-logloom:
-  # 语言设置
-  language: "zh"  # 支持 "zh" 或 "en"
-  
-  # 日志配置
-  log:
-    # 日志级别: DEBUG, INFO, WARN, ERROR, FATAL
-    level: "INFO"
-    
-    # 日志文件路径
-    file: "logs/app.log"
-    
-    # 日志文件最大大小（字节）
-    max_size: 1048576  # 1MB
-    
-    # 是否输出到控制台
-    console: true
-    
-    # 格式配置
-    format: "[{timestamp}][{level}][{module}] {message}"
-    
-    # 时间戳格式
-    timestamp_format: "%Y-%m-%d %H:%M:%S"
-  
-  # 国际化配置
-  i18n:
-    # 翻译文件目录
-    lang_dir: "locales"
-    
-    # 默认语言
-    default_language: "en"
-  
-  # 插件系统配置
-  plugins:
-    # 插件目录
-    dir: "plugins"
-    
-    # 启用的插件列表
-    enabled:
-      - "filter_sensitive"
-      - "sink_database"
-```
-
-### 字典配置格式
-
-使用字典初始化时，结构与 YAML 文件相同：
-
-```python
-config = {
-    "logloom": {
-        "language": "zh",
-        "log": {
-            "level": "INFO",
-            "file": "logs/app.log",
-            "max_size": 1048576,
-            "console": True
-        },
-        "plugins": {
-            "dir": "plugins",
-            "enabled": ["filter_sensitive", "sink_database"]
-        }
-    }
-}
-```
-
-## 特殊功能
-
-### 线程安全性
-
-Logloom 的所有 API 都是线程安全的，可以在多线程环境中使用，不需要额外的同步操作。
-
-### 日志文件轮转
-
-当日志文件大小超过设置的最大大小时，将自动进行轮转：
-1. 当前日志文件将被重命名为 `{原文件名}.1`
-2. 如果已存在 `.1` 文件，则递增为 `.2`，以此类推
-3. 创建新的空白日志文件继续写入
-
-### 多语言支持
-
-Logloom 支持在运行时动态切换语言，支持以下语言：
-
-- `en`: 英文
-- `zh`: 中文
-
-## 最佳实践
-
-### 合理使用日志级别
-
-- **DEBUG**：详细的调试信息，仅在开发和故障排查时启用
-- **INFO**：常规操作信息，表示正常流程
-- **WARN**：潜在问题的警告，不影响程序继续运行
-- **ERROR**：操作失败，但程序可以继续
-- **FATAL**：严重错误，程序可能无法继续
-
-### 日志文件管理
-
-1. **目录结构**：将日志文件放在专门的 `logs` 目录
-2. **命名约定**：使用有意义的名称，如 `app.log`、`auth.log` 等
-3. **轮转策略**：在长期运行的应用中设置合理的最大大小
-
-### 国际化最佳实践
-
-1. **使用键名而非硬编码文本**：`get_text("welcome.user")` 而非直接使用字符串
-2. **键名命名约定**：使用点号分隔的层次结构，如 `category.subcategory.name`
-3. **参数顺序**：在不同语言之间保持参数顺序一致
-
-### 插件开发最佳实践
-
-1. **保持简单**：每个插件只做一件事，并做好它
-2. **错误处理**：插件应妥善处理异常，不应导致主程序崩溃
-3. **配置验证**：在插件初始化时验证配置，提供有用的错误信息
-4. **性能考虑**：插件的process方法会被频繁调用，应尽量高效
-
-### 性能优化
-
-1. **日志级别过滤**：在性能敏感的环境中使用更高的日志级别（INFO 或更高）
-2. **避免频繁调用 `get_text`**：对于重复使用的文本，获取一次并重用
-3. **使用 Logger 实例**：优先使用 `Logger` 实例而非全局函数，减少上下文检测开销
-4. **适当配置插件**：只启用必要的插件，减少日志处理开销
-
-## 常见问题解答
-
-### 使用场景问题
-
-#### 问：如何在多个模块中使用不同的日志配置？
-答：为每个模块创建单独的 `Logger` 实例，并单独配置级别和输出文件。
-
-#### 问：如何同时输出到控制台和文件？
-答：使用 `set_log_file` 设置文件输出，确保 `set_output_console(True)` 启用控制台输出。
-
-#### 问：如何实现自定义日志处理逻辑？
-答：创建自定义插件类并使用 `register_plugin` 注册，插件可以过滤、修改或重定向日志。
-
-### 技术问题
-
-#### 问：为什么使用 `logloom_py.format_text` 而非 Python 的 `format` 函数？
-答：`format_text` 自动处理语言切换和翻译查找，更适合国际化应用。
-
-#### 问：如何添加自定义语言支持？
-答：在 `locales` 目录中添加新的语言 YAML 文件，如 `ja.yaml` 用于日语支持。
-
-#### 问：Logloom 的 Python 绑定是否依赖 C 扩展？
-答：是的，Logloom 的 Python 绑定通过 CPython 扩展实现，但提供了纯 Python 备选实现，如果 C 扩展不可用或安装失败，会自动降级使用纯 Python 实现。
-
-#### 问：如何调试插件加载问题？
-答：设置环境变量 `LOGLOOM_DEBUG=1` 可以启用插件加载的详细日志输出。
 

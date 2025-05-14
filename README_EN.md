@@ -2,6 +2,10 @@
 
 Change Language: [CN](./README.md)
 
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/yourusername/Logloom)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/yourusername/Logloom/releases)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 > **Note**: This is a Minimum Viable Product (MVP) version under active development. Core functionalities are implemented, but more advanced features will be added in future releases.
 
 ---
@@ -420,6 +424,52 @@ python run_tests.py
    # Format text with parameters
    error_text = ll.format_text("error.file_not_found", "/data/config.json")
    user_text = ll.format_text("user.profile", name="John", age=30)
+   ```
+
+   **Dynamic Language Resource Registration (New in 1.2.0)**
+   
+   ```python
+   # Register a single language resource file
+   # Language code can be inferred from filename (e.g., "fr.yaml" for French)
+   ll.register_locale_file("/path/to/fr.yaml")
+   # Or explicitly specified
+   ll.register_locale_file("/path/to/custom_translations.yaml", "de")
+   
+   # Register all language resource files in a directory
+   count = ll.register_locale_directory("/app/translations")
+   print(f"Registered {count} language files")
+   
+   # Query supported languages
+   languages = ll.get_supported_languages()
+   print(f"Supported languages: {', '.join(languages)}")  # e.g.: en, zh, fr, de
+   
+   # Get all translation keys for a specific language
+   zh_keys = ll.get_language_keys("zh")
+   print(f"Chinese translation keys count: {len(zh_keys)}")
+   
+   # Use newly registered language
+   ll.set_language("fr")
+   welcome = ll.get_text("system.welcome")  # Get welcome message in French
+   ```
+   
+   **Multi-language Environment Configuration**
+   
+   The configuration file can specify default language and resource paths:
+   
+   ```yaml
+   logloom:
+     # Language setting
+     language: "en"  # Default language
+     
+     # Internationalization config (new in 1.2.0)
+     i18n:
+       # Language resource paths list, supports glob patterns
+       locale_paths:
+         - "./locales/*.yaml"
+         - "./custom_translations/*.yaml"
+       
+       # Auto-discover resource directories (defaults to true if not specified)
+       auto_discover: true
    ```
 
 ### Advanced Usage

@@ -3,7 +3,7 @@
 一个轻量级的、国际化友好的、可扩展的日志系统，具备多平台支持能力，可用于用户空间应用和Linux内核模块。
 
 [![构建状态](https://img.shields.io/badge/构建-通过-brightgreen)](https://github.com/yourusername/Logloom)
-[![版本](https://img.shields.io/badge/版本-1.0.0-blue)](https://github.com/yourusername/Logloom/releases)
+[![版本](https://img.shields.io/badge/版本-1.2.0-blue)](https://github.com/yourusername/Logloom/releases)
 [![许可证](https://img.shields.io/badge/许可证-MIT-green)](LICENSE)
 
 ## 特性
@@ -184,6 +184,59 @@ app:
 errors:
   file_not_found: "找不到文件: {0}"
   permission: "权限不足"
+```
+
+### 动态注册语言资源 (Python)
+
+自1.2.0版本起，Logloom支持在运行时动态注册新的语言资源文件：
+
+```python
+import logloom_py as ll
+
+# 初始化
+ll.initialize("config.yaml")
+
+# 注册单个语言资源文件
+# 可以从文件名推断语言代码(如"fr.yaml"推断为法语)
+ll.register_locale_file("/path/to/fr.yaml")
+# 也可以显式指定语言代码
+ll.register_locale_file("/path/to/custom_translations.yaml", "de")
+
+# 注册整个目录中的语言资源文件
+count = ll.register_locale_directory("/app/translations")
+print(f"已注册{count}个语言资源文件")
+
+# 查询支持的语言列表
+languages = ll.get_supported_languages()
+print(f"当前支持的语言: {', '.join(languages)}")  # 如: en, zh, fr, de
+
+# 查询特定语言的所有翻译键
+zh_keys = ll.get_language_keys("zh")
+print(f"中文翻译键数量: {len(zh_keys)}")
+
+# 使用新注册的语言
+ll.set_language("fr")
+welcome = ll.get_text("system.welcome")  # 获取法语欢迎消息
+```
+
+### 多语言环境配置
+
+在配置文件中，可以指定默认语言和语言资源路径：
+
+```yaml
+logloom:
+  # 语言设置
+  language: "zh"  # 默认语言
+  
+  # 国际化配置 (1.2.0版本新增)
+  i18n:
+    # 语言资源路径列表，支持glob模式
+    locale_paths:
+      - "./locales/*.yaml"
+      - "./custom_translations/*.yaml"
+    
+    # 自动发现资源目录 (如果未指定默认为true)
+    auto_discover: true
 ```
 
 ## 插件系统

@@ -142,7 +142,7 @@ _mock_texts = {
     }
 }
 
-__version__ = "0.1.0"
+__version__ = "1.2.0"
 
 # 定义日志级别枚举
 class LogLevel(enum.Enum):
@@ -520,3 +520,36 @@ def shutdown_plugins():
     关闭插件系统
     """
     plugin_shutdown()
+
+"""
+Logloom Python 纯实现模块
+当C扩展无法加载时，将使用此纯Python实现
+"""
+
+"""
+Logloom 纯Python实现包
+
+这个包提供了Logloom C扩展的纯Python替代实现，在C扩展无法使用时作为备选方案。
+"""
+
+from .logloom_pure import (
+    initialize, cleanup,
+    debug, info, warn, warning, error, fatal, critical,
+    get_text, format_text,
+    set_log_level, set_language, get_language, get_current_language,
+    set_log_file, set_log_max_size, set_output_console,
+    register_locale_file, register_locale_directory,
+    scan_directory_with_glob, auto_discover_resources,
+    get_supported_languages, get_language_keys
+)
+
+__all__ = [
+    'initialize', 'cleanup',
+    'debug', 'info', 'warn', 'warning', 'error', 'fatal', 'critical',
+    'get_text', 'format_text', 
+    'set_log_level', 'set_language', 'get_language', 'get_current_language',
+    'set_log_file', 'set_log_max_size', 'set_output_console',
+    'register_locale_file', 'register_locale_directory',
+    'scan_directory_with_glob', 'auto_discover_resources',
+    'get_supported_languages', 'get_language_keys'
+]

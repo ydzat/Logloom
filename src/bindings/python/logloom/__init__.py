@@ -13,6 +13,10 @@ from importlib.util import spec_from_file_location, module_from_spec
 
 # 全局变量，用于纯Python实现
 _current_language = "en"  # 默认语言
+
+# 导入纯Python实现的国际化扩展函数
+from .lang import register_locale_file, register_locale_directory, get_supported_languages, get_language_keys, _resources
+
 _mock_texts = {
     # 英文文本
     "en": {
@@ -232,7 +236,9 @@ else:
         global _current_language
         
         # 验证语言代码
-        if lang_code not in _mock_texts:
+        # 1. 检查预定义语言
+        # 2. 检查动态加载的语言资源
+        if lang_code not in _mock_texts and lang_code not in _resources:
             print(f"警告：不支持的语言代码 {lang_code}，使用英语")
             _current_language = "en"
             return False
@@ -246,12 +252,16 @@ else:
     
     def get_text(key, *args):
         """获取翻译文本"""
-        # 尝试在当前语言中获取文本
-        text = _mock_texts.get(_current_language, {}).get(key)
-        
-        # 如果找不到，尝试英语
-        if text is None and _current_language != "en":
-            text = _mock_texts.get("en", {}).get(key)
+        # 首先尝试从动态注册的资源中获取文本
+        if _current_language in _resources and key in _resources[_current_language]:
+            text = _resources[_current_language][key]
+        else:
+            # 尝试在当前语言中获取文本
+            text = _mock_texts.get(_current_language, {}).get(key)
+            
+            # 如果找不到，尝试英语
+            if text is None and _current_language != "en":
+                text = _mock_texts.get("en", {}).get(key)
         
         # 仍找不到，返回键名
         if text is None:
@@ -268,12 +278,16 @@ else:
     
     def format_text(key, *args, **kwargs):
         """获取并格式化翻译文本"""
-        # 尝试在当前语言中获取文本
-        text = _mock_texts.get(_current_language, {}).get(key)
-        
-        # 如果找不到，尝试英语
-        if text is None and _current_language != "en":
-            text = _mock_texts.get("en", {}).get(key)
+        # 首先尝试从动态注册的资源中获取文本
+        if _current_language in _resources and key in _resources[_current_language]:
+            text = _resources[_current_language][key]
+        else:
+            # 尝试在当前语言中获取文本
+            text = _mock_texts.get(_current_language, {}).get(key)
+            
+            # 如果找不到，尝试英语
+            if text is None and _current_language != "en":
+                text = _mock_texts.get("en", {}).get(key)
         
         # 仍找不到，返回键名
         if text is None:
@@ -432,4 +446,14 @@ def cleanup():
     return True
 
 # 版本信息
-__version__ = '0.1.0'
+__version__ = '1.1.0'
+
+# 显式导出纯Python实现的所有函数到模块全局命名空间
+# 这样可以确保在C扩展不可用时，这些函数仍然可以被导入使用
+__all__ = [
+    'LogLevel', 'debug', 'info', 'warn', 'error', 'fatal',
+    'set_log_level', 'set_log_file', 'set_log_max_size', 'set_output_console',
+    'set_language', 'get_current_language', 'get_text', 'format_text',
+    'initialize', 'cleanup', 'Logger', 'logger',
+    'register_locale_file', 'register_locale_directory', 'get_supported_languages', 'get_language_keys'
+]

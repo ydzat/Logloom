@@ -1,0 +1,14 @@
+system:
+  welcome: "Bienvenue au système de journalisation Logloom"
+  start_message: "Système démarré"
+  shutdown_message: "Système en cours d'arrêt"
+  error_message: "Erreur survenue: {0}"
+
+error:
+  file_not_found: "Fichier non trouvé: {0}"
+  invalid_value: "Valeur invalide: {value}, attendue: {expected}"
+
+test:
+  hello: "Bonjour, {0}!"
+  error_count: "Rencontré {0} erreurs"
+  custom_key: "Ceci est une clé personnalisée en français"

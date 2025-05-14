@@ -15,6 +15,7 @@ logloom/plugin/plugin_base.py
 logloom_py/__init__.py
 logloom_py/config.py
 logloom_py/logger.py
+logloom_py/logloom_pure.py
 logloom_py/plugin/__init__.py
 logloom_py/plugin/loader.py
 logloom_py/plugin/manager.py

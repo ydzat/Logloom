@@ -91,6 +91,174 @@ static PyObject* logloom_lang_getf(PyObject* self, PyObject* args, PyObject* kwa
     return result;
 }
 
+// 注册语言资源文件的包装函数
+static PyObject* logloom_register_locale_file(PyObject* self, PyObject* args, PyObject* kwargs) {
+    const char* file_path = NULL;
+    const char* lang_code = NULL;
+    static char* kwlist[] = {"file_path", "lang_code", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &file_path, &lang_code))
+        return NULL;
+    
+    // 检查文件是否存在和可读
+    if (access(file_path, R_OK) != 0) {
+        PyErr_Format(PyExc_FileNotFoundError, "Language resource file does not exist or is not readable: %s", file_path);
+        return NULL;
+    }
+    
+    // 调用C API注册文件
+    bool success = lang_register_file(file_path, lang_code);
+    if (!success) {
+        PyErr_Format(PyExc_RuntimeError, "Failed to register language resource file: %s", file_path);
+        return NULL;
+    }
+    
+    Py_RETURN_TRUE;
+}
+
+// 注册目录中所有匹配模式的语言资源文件的包装函数
+static PyObject* logloom_register_locale_directory(PyObject* self, PyObject* args, PyObject* kwargs) {
+    const char* dir_path = NULL;
+    const char* pattern = "*.yaml";
+    static char* kwlist[] = {"dir_path", "pattern", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &dir_path, &pattern))
+        return NULL;
+    
+    // 检查目录是否存在
+    struct stat st;
+    if (stat(dir_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        PyErr_Format(PyExc_FileNotFoundError, "Directory does not exist: %s", dir_path);
+        return NULL;
+    }
+    
+    // 调用C API扫描目录
+    int count = lang_scan_directory(dir_path, pattern);
+    
+    return PyLong_FromLong(count);
+}
+
+// 扫描使用glob模式的目录的包装函数
+static PyObject* logloom_scan_directory_with_glob(PyObject* self, PyObject* args) {
+    const char* glob_pattern;
+    if (!PyArg_ParseTuple(args, "s", &glob_pattern))
+        return NULL;
+    
+    // 调用C API扫描目录
+    int count = lang_scan_directory_with_glob(glob_pattern);
+    
+    return PyLong_FromLong(count);
+}
+
+// 自动发现语言资源文件的包装函数
+static PyObject* logloom_auto_discover_resources(PyObject* self, PyObject* Py_UNUSED(ignored)) {
+    // 调用C API自动发现资源
+    bool found = lang_auto_discover_resources();
+    
+    if (found)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// 获取支持的语言列表的包装函数
+static PyObject* logloom_get_supported_languages(PyObject* self, PyObject* Py_UNUSED(ignored)) {
+    // 调用C API获取语言列表
+    int count = 0;
+    char** languages = lang_get_supported_languages(&count);
+    
+    if (!languages) {
+        // 如果没有语言，返回空列表
+        return PyList_New(0);
+    }
+    
+    // 创建Python列表
+    PyObject* lang_list = PyList_New(count);
+    if (!lang_list) {
+        // 释放C API分配的内存
+        for (int i = 0; i < count; i++) {
+            free(languages[i]);
+        }
+        free(languages);
+        return NULL;
+    }
+    
+    // 填充列表
+    for (int i = 0; i < count; i++) {
+        PyObject* lang_str = PyUnicode_FromString(languages[i]);
+        if (!lang_str) {
+            Py_DECREF(lang_list);
+            // 释放C API分配的内存
+            for (int j = 0; j < count; j++) {
+                free(languages[j]);
+            }
+            free(languages);
+            return NULL;
+        }
+        PyList_SET_ITEM(lang_list, i, lang_str); // 此函数窃取引用，无需DECREF
+    }
+    
+    // 释放C API分配的内存
+    for (int i = 0; i < count; i++) {
+        free(languages[i]);
+    }
+    free(languages);
+    
+    return lang_list;
+}
+
+// 获取语言键列表的包装函数
+static PyObject* logloom_get_language_keys(PyObject* self, PyObject* args, PyObject* kwargs) {
+    const char* lang_code = NULL;
+    static char* kwlist[] = {"lang_code", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|s", kwlist, &lang_code))
+        return NULL;
+    
+    // 调用C API获取键列表
+    int count = 0;
+    char** keys = lang_get_language_keys(lang_code, &count);
+    
+    if (!keys) {
+        // 如果没有键，返回空列表
+        return PyList_New(0);
+    }
+    
+    // 创建Python列表
+    PyObject* key_list = PyList_New(count);
+    if (!key_list) {
+        // 释放C API分配的内存
+        for (int i = 0; i < count; i++) {
+            free(keys[i]);
+        }
+        free(keys);
+        return NULL;
+    }
+    
+    // 填充列表
+    for (int i = 0; i < count; i++) {
+        PyObject* key_str = PyUnicode_FromString(keys[i]);
+        if (!key_str) {
+            Py_DECREF(key_list);
+            // 释放C API分配的内存
+            for (int j = 0; j < count; j++) {
+                free(keys[j]);
+            }
+            free(keys);
+            return NULL;
+        }
+        PyList_SET_ITEM(key_list, i, key_str); // 此函数窃取引用，无需DECREF
+    }
+    
+    // 释放C API分配的内存
+    for (int i = 0; i < count; i++) {
+        free(keys[i]);
+    }
+    free(keys);
+    
+    return key_list;
+}
+
 // 设置日志级别的包装函数
 static PyObject* logloom_set_log_level(PyObject* self, PyObject* args) {
     const char* level;
@@ -323,6 +491,21 @@ static PyMethodDef LogloomMethods[] = {
      "Set the maximum log file size"},
     {"set_output_console", logloom_set_output_console, METH_VARARGS,
      "Enable or disable console output"},
+    
+    // 新增国际化扩展功能API
+    {"register_locale_file", (PyCFunction)logloom_register_locale_file, METH_VARARGS | METH_KEYWORDS,
+     "Register an additional language resource file"},
+    {"register_locale_directory", (PyCFunction)logloom_register_locale_directory, METH_VARARGS | METH_KEYWORDS,
+     "Register language resource files in a directory matching a pattern"},
+    {"scan_directory_with_glob", logloom_scan_directory_with_glob, METH_VARARGS,
+     "Scan directory using a glob pattern to find language resources"},
+    {"auto_discover_resources", logloom_auto_discover_resources, METH_NOARGS,
+     "Auto-discover language resource files in standard locations"},
+    {"get_supported_languages", logloom_get_supported_languages, METH_NOARGS,
+     "Get a list of all supported language codes"},
+    {"get_language_keys", (PyCFunction)logloom_get_language_keys, METH_VARARGS | METH_KEYWORDS,
+     "Get a list of all available translation keys for a language"},
+    
     {NULL, NULL, 0, NULL} /* Sentinel */
 };
 
