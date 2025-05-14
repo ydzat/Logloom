@@ -142,7 +142,7 @@ _mock_texts = {
     }
 }
 
-__version__ = "1.1.0"
+__version__ = "1.2.1"
 
 # 定义日志级别枚举
 class LogLevel(enum.Enum):

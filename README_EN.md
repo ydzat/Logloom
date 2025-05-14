@@ -3,7 +3,7 @@
 Change Language: [CN](./README.md)
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/yourusername/Logloom)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/yourusername/Logloom/releases)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue)](https://github.com/yourusername/Logloom/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > **Note**: This is a Minimum Viable Product (MVP) version under active development. Core functionalities are implemented, but more advanced features will be added in future releases.
@@ -285,6 +285,37 @@ pip install -r requirements-dev.txt
    cd src/bindings/python
    pip install -e .
    ```
+
+### Version Management
+
+Logloom uses a centralized version management system that maintains version consistency across all project components.
+
+#### Version Management Commands
+
+```bash
+# Check version consistency across the project
+make version-check
+
+# Update all version references from the central version file
+make version-update
+
+# Set a new version number (interactive prompt)
+make version-set
+
+# Directly set a specific version number
+./tools/version_manager.py --set 1.3.0
+```
+
+#### How the Version System Works
+
+1. A central version file (`version/VERSION`) serves as the single source of truth
+2. The version management tool (`tools/version_manager.py`) automatically updates:
+   - C header file (`include/generated/version.h`)
+   - Kernel module version declarations
+   - Python bindings version numbers
+   - Version tags in README files
+
+When developing or releasing new versions, simply update the central version file, and all other files will be automatically synchronized to maintain version consistency.
 
 ### Verify Installation
 

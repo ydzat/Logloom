@@ -3,7 +3,7 @@
 一个轻量级的、国际化友好的、可扩展的日志系统，具备多平台支持能力，可用于用户空间应用和Linux内核模块。
 
 [![构建状态](https://img.shields.io/badge/构建-通过-brightgreen)](https://github.com/yourusername/Logloom)
-[![版本](https://img.shields.io/badge/版本-1.2.0-blue)](https://github.com/yourusername/Logloom/releases)
+[![版本](https://img.shields.io/badge/版本-1.2.1-blue)](https://github.com/yourusername/Logloom/releases)
 [![许可证](https://img.shields.io/badge/许可证-MIT-green)](LICENSE)
 
 ## 特性
@@ -330,6 +330,37 @@ python setup.py build
 # 安装Python包
 python setup.py install
 ```
+
+### 版本管理
+
+Logloom使用集中式版本管理系统，通过单一版本源文件控制整个项目的版本号。
+
+#### 版本管理命令
+
+```bash
+# 检查版本号一致性
+make version-check
+
+# 更新所有文件的版本号（基于中央版本文件）
+make version-update
+
+# 设置新版本号（交互式）
+make version-set
+
+# 直接设置特定版本号
+./tools/version_manager.py --set 1.2.1
+```
+
+#### 版本管理系统工作原理
+
+1. 中央版本文件 `version/VERSION` 作为唯一的版本号真实来源
+2. 版本管理工具 `tools/version_manager.py` 根据中央版本文件自动更新：
+   - C语言头文件 `include/generated/version.h`
+   - 内核模块的版本声明
+   - Python绑定中的版本号
+   - README文件中的版本标记
+
+开发和发布新版本时，只需更新中央版本文件，其余文件会自动同步，保证版本号一致性。
 
 ## 文档
 

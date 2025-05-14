@@ -4,21 +4,91 @@ Logloom Python Bindings
 
 A Python interface for the Logloom logging and internationalization library.
 """
+import sys
+import os
+import inspect
+import enum
 
-# 尝试导入C扩展模块，如果导入失败，则使用纯Python实现
+# 尝试直接从系统路径导入C扩展模块，如果导入失败，则使用纯Python实现
 try:
+    # 首先尝试从已安装的包中导入
     import logloom
     _has_c_extension = True
 except ImportError:
-    print("[WARNING] Failed to import logloom C extension module, falling back to pure Python implementation")
-    _has_c_extension = False
-
+    try:
+        # 如果直接导入失败，尝试从构建目录导入
+        build_dirs = []
+        # 寻找可能的构建目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        for dirpath, dirnames, filenames in os.walk(parent_dir):
+            for filename in filenames:
+                if filename.startswith('logloom') and (filename.endswith('.so') or filename.endswith('.pyd')):
+                    build_dirs.append(dirpath)
+                    break
+        
+        # 将这些目录添加到sys.path并尝试导入
+        _has_c_extension = False
+        for build_dir in build_dirs:
+            if build_dir not in sys.path:
+                sys.path.insert(0, build_dir)
+                try:
+                    import logloom
+                    _has_c_extension = True
+                    break
+                except ImportError:
+                    pass
+                
+        if not _has_c_extension:
+            print("[WARNING] Failed to import logloom C extension module, falling back to pure Python implementation")
+            # 按原来的结构继续使用纯Python实现
+    except Exception as e:
+        print(f"[WARNING] Error when trying to import logloom module: {e}")
+        _has_c_extension = False
+    
 from .logger import Logger
 from .config import config
-import enum
-import os
-import sys
-import inspect
+
+# 添加API别名，使API与文档一致
+def set_log_level(level):
+    """设置全局日志等级"""
+    if _has_c_extension:
+        try:
+            return logloom.set_log_level(level)
+        except AttributeError as e:
+            print(f"[WARNING] 设置日志级别失败: {e}")
+    logger.set_level(level)
+    return True
+
+def set_log_file(filepath):
+    """设置日志输出文件路径"""
+    if _has_c_extension:
+        try:
+            return logloom.set_log_file(filepath)
+        except AttributeError as e:
+            print(f"[WARNING] 设置日志文件失败: {e}")
+    logger.set_file(filepath)
+    return True
+
+def set_log_max_size(max_bytes):
+    """设置单文件最大大小，超限轮转"""
+    if _has_c_extension:
+        try:
+            return logloom.set_log_max_size(max_bytes)
+        except AttributeError as e:
+            print(f"[WARNING] 设置日志文件轮转大小失败: {e}")
+    logger.set_rotation_size(max_bytes)
+    return True
+
+def set_output_console(enabled):
+    """开启/关闭控制台输出"""
+    if _has_c_extension:
+        try:
+            return logloom.set_output_console(enabled)
+        except AttributeError as e:
+            print(f"[WARNING] 设置控制台输出失败: {e}")
+    # 纯Python实现暂不支持控制台输出切换
+    return True
 
 # 导入Python插件系统 - 修复导入路径
 try:
@@ -72,7 +142,7 @@ _mock_texts = {
     }
 }
 
-__version__ = "0.1.0"
+__version__ = "1.2.1"
 
 # 定义日志级别枚举
 class LogLevel(enum.Enum):
@@ -89,7 +159,7 @@ logger = Logger()
 __all__ = [
     'initialize', 'cleanup', 'set_language', 'get_current_language',
     'get_text', 'format_text', 'logger', 'Logger', 'LogLevel', 'config',
-    'set_log_file',
+    'set_log_file', 'set_log_level', 'set_log_max_size', 'set_output_console',
     # 插件系统相关
     'Plugin', 'FilterPlugin', 'SinkPlugin', 'AIPlugin', 'LangPlugin',
     'PluginType', 'PluginMode', 'PluginCapability', 'PluginResult',
@@ -104,8 +174,8 @@ def initialize(config_path=None):
     
     Parameters:
     -----------
-    config_path : str, optional
-        配置文件路径，如果未提供，使用环境变量 LOGLOOM_CONFIG 或默认位置
+    config_path : str or dict, optional
+        配置文件路径或配置字典，如果未提供，使用环境变量 LOGLOOM_CONFIG 或默认位置
     
     Returns:
     --------
@@ -114,51 +184,82 @@ def initialize(config_path=None):
     """
     global _initialized, _current_language
     
-    if _initialized:
+    # 防止递归调用
+    _recursion_guard = getattr(initialize, '_recursion_guard', False)
+    if _recursion_guard:
+        return False
+    
+    try:
+        initialize._recursion_guard = True
+        
+        if _initialized:
+            return True
+        
+        # 处理字典类型的配置
+        temp_config_path = None
+        if isinstance(config_path, dict):
+            try:
+                import tempfile
+                import yaml
+                import os
+                
+                # 将字典转为临时YAML文件
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
+                    yaml.dump(config_path, temp_file)
+                    temp_config_path = temp_file.name
+                
+                # 设置临时文件路径用于后续处理
+                config_path = temp_config_path
+                # 记录临时文件路径以便清理
+                initialize._temp_config_path = temp_config_path
+            except Exception as e:
+                print(f"[ERROR] 无法创建临时配置文件: {e}")
+                return False
+        
+        # 加载配置文件
+        if config.load(config_path):
+            # 1. 读取语言设置 - 支持两种配置格式
+            lang_setting = config.get('logloom.language')
+            if not lang_setting:
+                lang_setting = config.get('i18n.default_language', 'en')
+                
+            if lang_setting in _mock_texts:
+                _current_language = lang_setting
+                
+            # 2. 读取日志级别设置 - 支持两种配置格式
+            log_level = config.get('logloom.log.level')
+            if not log_level:
+                log_level = config.get('logging.default_level', 'INFO')
+                
+            # 3. 读取日志文件设置 - 支持两种配置格式
+            log_file = config.get('logloom.log.file')
+            if not log_file:
+                log_file = config.get('logging.output_path')
+                
+            # 4. 读取日志轮转大小 - 支持两种配置格式
+            rotation_size = config.get('logloom.log.max_size')
+            if not rotation_size:
+                rotation_size = config.get('logging.max_file_size', 1024*1024)  # 默认1MB
+            
+            # 应用日志配置
+            if log_level:
+                logger.set_level(log_level)
+            if log_file:
+                logger.set_file(log_file)
+            if rotation_size:
+                logger.set_rotation_size(rotation_size)
+        
+        # 如果有C扩展，调用原生初始化
+        if _has_c_extension:
+            try:
+                logloom.initialize(config_path or "")
+            except Exception as e:
+                print(f"[ERROR] 初始化Logloom失败: {e}")
+        
+        _initialized = True
         return True
-        
-    # 加载配置文件
-    if config.load(config_path):
-        # 1. 读取语言设置 - 支持两种配置格式
-        lang_setting = config.get('logloom.language')
-        if not lang_setting:
-            lang_setting = config.get('i18n.default_language', 'en')
-            
-        if lang_setting in _mock_texts:
-            _current_language = lang_setting
-            
-        # 2. 读取日志级别设置 - 支持两种配置格式
-        log_level = config.get('logloom.log.level')
-        if not log_level:
-            log_level = config.get('logging.default_level', 'INFO')
-            
-        # 3. 读取日志文件设置 - 支持两种配置格式
-        log_file = config.get('logloom.log.file')
-        if not log_file:
-            log_file = config.get('logging.output_path')
-            
-        # 4. 读取日志轮转大小 - 支持两种配置格式
-        rotation_size = config.get('logloom.log.max_size')
-        if not rotation_size:
-            rotation_size = config.get('logging.max_file_size', 1024*1024)  # 默认1MB
-        
-        # 应用日志配置
-        if log_level:
-            logger.set_level(log_level)
-        if log_file:
-            logger.set_file(log_file)
-        if rotation_size:
-            logger.set_rotation_size(rotation_size)
-    
-    # 如果有C扩展，调用原生初始化
-    if _has_c_extension:
-        try:
-            logloom.initialize(config_path or "")
-        except Exception as e:
-            print(f"[ERROR] 初始化Logloom失败: {e}")
-    
-    _initialized = True
-    return True
+    finally:
+        initialize._recursion_guard = False
 
 def cleanup():
     """
@@ -181,6 +282,14 @@ def cleanup():
         except Exception as e:
             print(f"[WARNING] 清理Logloom资源失败: {e}")
     
+    # 删除临时配置文件（如果存在）
+    temp_config_path = getattr(initialize, '_temp_config_path', None)
+    if temp_config_path and os.path.exists(temp_config_path):
+        try:
+            os.unlink(temp_config_path)
+        except Exception as e:
+            print(f"[WARNING] 无法删除临时配置文件 {temp_config_path}: {e}")
+    
     _initialized = False
     return True
 
@@ -200,21 +309,31 @@ def set_language(lang_code):
     """
     global _current_language
     
-    # 验证语言代码是否有效
-    if lang_code not in _mock_texts:
-        print(f"[WARNING] 不支持的语言: {lang_code}，继续使用当前语言: {_current_language}")
+    # 防止递归调用
+    _recursion_guard = getattr(set_language, '_recursion_guard', False)
+    if _recursion_guard:
         return False
     
-    _current_language = lang_code
-    
-    # 如果有C扩展，也设置C库的语言
-    if _has_c_extension:
-        try:
-            logloom.set_language(lang_code)
-        except Exception as e:
-            print(f"[WARNING] 设置语言失败: {e}")
-    
-    return True
+    try:
+        set_language._recursion_guard = True
+        
+        # 验证语言代码是否有效
+        if lang_code not in _mock_texts:
+            print(f"[WARNING] 不支持的语言: {lang_code}，继续使用当前语言: {_current_language}")
+            return False
+        
+        _current_language = lang_code
+        
+        # 如果有C扩展，也设置C库的语言
+        if _has_c_extension:
+            try:
+                logloom.set_language(lang_code)
+            except Exception as e:
+                print(f"[WARNING] 设置语言失败: {e}")
+        
+        return True
+    finally:
+        set_language._recursion_guard = False
 
 def get_current_language():
     """
@@ -255,38 +374,48 @@ def get_text(key, *args):
     KeyError
         当测试模式下找不到指定的键
     """
-    # 优先使用C扩展获取文本
-    if _has_c_extension:
-        try:
-            return logloom.get_text(key, *args)
-        except Exception as e:
-            print(f"[WARNING] 获取文本失败: {e}")
+    # 防止递归调用
+    _recursion_guard = getattr(get_text, '_recursion_guard', False)
+    if _recursion_guard:
+        return key  # 递归时直接返回键名
     
-    # 回退到Python实现
-    lang = _current_language
-    
-    # 尝试在当前语言中查找文本
-    text = _mock_texts.get(lang, {}).get(key)
-    
-    # 如果找不到，尝试在英语中查找
-    if text is None and lang != 'en':
-        text = _mock_texts.get('en', {}).get(key)
-    
-    # 如果仍然找不到，根据测试需要抛出KeyError或使用键名
-    if text is None:
-        # 对于test_开头的测试用例，抛出KeyError
-        if sys.gettrace() is not None or any(frame.filename.endswith('test_logloom_i18n.py') for frame in inspect.stack()):
-            raise KeyError(f"未找到翻译键: {key}")
-        text = key
-    
-    # 执行格式化（如果有参数）
-    if args:
-        try:
-            text = text.format(*args)
-        except Exception as e:
-            print(f"[WARNING] 格式化文本失败: {e}")
-    
-    return text
+    try:
+        get_text._recursion_guard = True
+        
+        # 优先使用C扩展获取文本
+        if _has_c_extension:
+            try:
+                return logloom.get_text(key, *args)
+            except Exception as e:
+                print(f"[WARNING] 获取文本失败: {e}")
+        
+        # 回退到Python实现
+        lang = _current_language
+        
+        # 尝试在当前语言中查找文本
+        text = _mock_texts.get(lang, {}).get(key)
+        
+        # 如果找不到，尝试在英语中查找
+        if text is None and lang != 'en':
+            text = _mock_texts.get('en', {}).get(key)
+        
+        # 如果仍然找不到，根据测试需要抛出KeyError或使用键名
+        if text is None:
+            # 对于test_开头的测试用例，抛出KeyError
+            if sys.gettrace() is not None or any(frame.filename.endswith('test_logloom_i18n.py') for frame in inspect.stack()):
+                raise KeyError(f"未找到翻译键: {key}")
+            text = key
+        
+        # 执行格式化（如果有参数）
+        if args:
+            try:
+                text = text.format(*args)
+            except Exception as e:
+                print(f"[WARNING] 格式化文本失败: {e}")
+        
+        return text
+    finally:
+        get_text._recursion_guard = False
 
 def format_text(key, *args, **kwargs):
     """
@@ -306,39 +435,49 @@ def format_text(key, *args, **kwargs):
     str
         格式化后的翻译文本
     """
-    # 优先使用C扩展获取并格式化文本
-    if _has_c_extension:
-        try:
-            return logloom.format_text(key, *args, **kwargs)
-        except Exception as e:
-            print(f"[WARNING] 格式化文本失败: {e}")
+    # 防止递归调用
+    _recursion_guard = getattr(format_text, '_recursion_guard', False)
+    if _recursion_guard:
+        return key  # 递归时直接返回键名
     
-    # 回退到Python实现
-    # 先获取文本
-    lang = _current_language
-    
-    # 尝试在当前语言中查找文本
-    text = _mock_texts.get(lang, {}).get(key)
-    
-    # 如果找不到，尝试在英语中查找
-    if text is None and lang != 'en':
-        text = _mock_texts.get('en', {}).get(key)
-    
-    # 如果仍然找不到，返回键名
-    if text is None:
-        text = key
-    
-    # 执行格式化
-    if args or kwargs:
-        try:
-            if kwargs:
-                text = text.format(**kwargs)
-            elif args:
-                text = text.format(*args)
-        except Exception as e:
-            print(f"[WARNING] 格式化文本失败: {e}")
-    
-    return text
+    try:
+        format_text._recursion_guard = True
+        
+        # 优先使用C扩展获取并格式化文本
+        if _has_c_extension:
+            try:
+                return logloom.format_text(key, *args, **kwargs)
+            except Exception as e:
+                print(f"[WARNING] 格式化文本失败: {e}")
+        
+        # 回退到Python实现
+        # 先获取文本 - 不递归调用get_text，直接实现类似逻辑
+        lang = _current_language
+        
+        # 尝试在当前语言中查找文本
+        text = _mock_texts.get(lang, {}).get(key)
+        
+        # 如果找不到，尝试在英语中查找
+        if text is None and lang != 'en':
+            text = _mock_texts.get('en', {}).get(key)
+        
+        # 如果仍然找不到，返回键名
+        if text is None:
+            text = key
+        
+        # 执行格式化
+        if args or kwargs:
+            try:
+                if kwargs:
+                    text = text.format(**kwargs)
+                elif args:
+                    text = text.format(*args)
+            except Exception as e:
+                print(f"[WARNING] 格式化文本失败: {e}")
+        
+        return text
+    finally:
+        format_text._recursion_guard = False
 
 # 插件系统包装函数
 def initialize_plugins(plugin_dir=None, config_path=None):
@@ -382,9 +521,35 @@ def shutdown_plugins():
     """
     plugin_shutdown()
 
-def set_log_file(file_path):
-    """
-    设置日志文件路径
-    (为了兼容性提供的函数，建议直接使用 logger.set_file)
-    """
-    return logger.set_file(file_path)
+"""
+Logloom Python 纯实现模块
+当C扩展无法加载时，将使用此纯Python实现
+"""
+
+"""
+Logloom 纯Python实现包
+
+这个包提供了Logloom C扩展的纯Python替代实现，在C扩展无法使用时作为备选方案。
+"""
+
+from .logloom_pure import (
+    initialize, cleanup,
+    debug, info, warn, warning, error, fatal, critical,
+    get_text, format_text,
+    set_log_level, set_language, get_language, get_current_language,
+    set_log_file, set_log_max_size, set_output_console,
+    register_locale_file, register_locale_directory,
+    scan_directory_with_glob, auto_discover_resources,
+    get_supported_languages, get_language_keys
+)
+
+__all__ = [
+    'initialize', 'cleanup',
+    'debug', 'info', 'warn', 'warning', 'error', 'fatal', 'critical',
+    'get_text', 'format_text', 
+    'set_log_level', 'set_language', 'get_language', 'get_current_language',
+    'set_log_file', 'set_log_max_size', 'set_output_console',
+    'register_locale_file', 'register_locale_directory',
+    'scan_directory_with_glob', 'auto_discover_resources',
+    'get_supported_languages', 'get_language_keys'
+]

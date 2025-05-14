@@ -5,7 +5,7 @@ CFLAGS = -Wall -Werror -g -I./include -fPIC
 LDFLAGS = -ldl -pthread  # For plugin loading and threading
 
 # 编译目标
-.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test api-check api-check-html api-check-regex python python-install python-test
+.PHONY: all clean test dirs lang_headers config_headers kernel userspace kernel-test api-check api-check-html api-check-regex python python-install python-test version-update version-check version-set
 
 # Directories
 SRC_DIR = src
@@ -29,10 +29,24 @@ CORE_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(CORE_SRC))
 USERSPACE_OBJ = $(patsubst $(SRC_DIR)/%.c,$(BUILD_DIR)/%.o,$(USERSPACE_SRC))
 
 # 默认目标 - 构建用户空间库
-all: dirs lang_headers config_headers userspace demo
+all: dirs version-headers lang_headers config_headers userspace demo
 
 dirs:
 	mkdir -p $(BUILD_DIR)/core $(BUILD_DIR)/userspace $(INCLUDE_DIR)/generated
+
+# 版本管理目标
+version-headers:
+	./tools/version_manager.py --generate
+
+version-update:
+	./tools/version_manager.py --update
+
+version-check:
+	./tools/version_manager.py --check
+
+version-set:
+	@read -p "输入新版本号 (x.y.z 格式): " version; \
+	./tools/version_manager.py --set $$version
 
 # Language headers generation
 lang_headers:
@@ -47,7 +61,7 @@ userspace: $(CORE_OBJ) $(USERSPACE_OBJ)
 	ar rcs liblogloom.a $^
 
 # 内核模块
-kernel: dirs lang_headers config_headers
+kernel: dirs version-headers lang_headers config_headers
 	cd $(KERNEL_DIR) && ./build.sh build
 
 # 内核模块测试
@@ -63,7 +77,7 @@ demo: $(BUILD_DIR)/demo.o liblogloom.a
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 # Python bindings
-python: userspace
+python: userspace version-update
 	cd $(PYTHON_DIR) && python setup.py build
 
 # Python安装目标 (用户级)
@@ -115,7 +129,7 @@ api-check-html:
 	@echo "HTML报告已生成: api_consistency_report.html"
 
 # Test target
-test: dirs lang_headers config_headers
+test: dirs version-headers lang_headers config_headers
 	$(MAKE) -f Makefile.test
 	$(MAKE) python-test
 

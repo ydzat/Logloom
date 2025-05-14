@@ -11,10 +11,10 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Logloom Team");
 MODULE_DESCRIPTION("Logloom kernel module for logging and internationalization");
-MODULE_VERSION("1.2.0");
+MODULE_VERSION("1.2.1");
 
 // 定义一个模块版本常量，可以在代码中使用
-#define LOGLOOM_MODULE_VERSION "1.2.0"
+#define LOGLOOM_MODULE_VERSION "1.2.1"
 
 /* 模块参数定义 */
 static char* log_level = "INFO";

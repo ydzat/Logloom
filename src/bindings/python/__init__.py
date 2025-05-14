@@ -132,4 +132,4 @@ except ImportError as e:
         raise ImportError(f"无法导入Logloom C扩展模块也无法导入纯Python实现: {e}")
 
 # 模块版本号
-__version__ = "1.1.0"
+__version__ = "1.2.1"

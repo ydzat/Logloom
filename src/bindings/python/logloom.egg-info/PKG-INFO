@@ -1,10 +1,13 @@
-Metadata-Version: 2.4
+Metadata-Version: 1.2
 Name: logloom
-Version: 1.1.0
+Version: 1.2.1
 Summary: Python bindings for Logloom logging and internationalization library
 Home-page: https://github.com/yourusername/logloom
 Author: Logloom Team
 Author-email: info@logloom.example
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
 Classifier: Development Status :: 3 - Alpha
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
@@ -12,10 +15,3 @@ Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: C
 Classifier: Topic :: System :: Logging
 Classifier: Topic :: Software Development :: Internationalization
-Requires-Python: >=3.6
-Dynamic: author
-Dynamic: author-email
-Dynamic: classifier
-Dynamic: home-page
-Dynamic: requires-python
-Dynamic: summary

@@ -53,7 +53,7 @@ Python bindings for Logloom logging and internationalization library.
 \"\"\"
 
 # 设置版本
-__version__ = '1.1.0'
+__version__ = '1.2.1'
 
 # 导入子模块
 try:
@@ -81,7 +81,7 @@ logloom_module = Extension(
 # 设置包信息
 setup(
     name='logloom',
-    version='1.1.0',
+    version='1.2.1',
     description='Python bindings for Logloom logging and internationalization library',
     author='Logloom Team',
     author_email='info@logloom.example',
