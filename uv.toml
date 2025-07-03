@@ -1,0 +1,4 @@
+# uv配置文件
+# 强制使用Python 3.12
+python-preference = "only-managed"
+python-downloads = "automatic"

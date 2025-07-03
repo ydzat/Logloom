@@ -21,6 +21,56 @@
 - **插件系统**：支持动态加载自定义插件（过滤器、处理器等）
 - **配置灵活**：支持文件配置和编程API配置
 
+## 系统要求
+
+### 环境要求
+
+- **操作系统**：Linux（推荐 Fedora 41 或 Ubuntu 22.04+）
+- **编译器**：GCC 5.0+ 或 Clang 5.0+
+- **构建工具**：Make
+- **Python**：3.12.11+ （推荐使用 uv 进行环境管理）
+- **包管理器**：uv（推荐）或 pip
+
+### 依赖包
+
+在 Fedora 上安装依赖包：
+```bash
+sudo dnf install make gcc libyaml-devel pkgconfig python3-devel
+```
+
+在 Ubuntu/Debian 上安装依赖包：
+```bash
+sudo apt-get update
+sudo apt-get install build-essential libyaml-dev pkg-config python3-dev
+```
+
+### Python环境管理（推荐使用uv）
+
+1. 安装 uv：
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+2. 克隆项目并设置环境：
+```bash
+git clone https://github.com/yourusername/logloom.git
+cd logloom
+uv sync  # 自动创建虚拟环境并安装依赖
+```
+
+3. 运行Python测试：
+```bash
+uv run pytest tests/python/ -v
+```
+
+### 传统pip方式（如果不使用uv）
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
 ## 快速开始
 
 ### 在C语言中使用
@@ -54,6 +104,19 @@ int main() {
 ```
 
 ### 在Python中使用
+
+安装并使用Python绑定：
+
+```bash
+# 使用uv（推荐）
+uv run python -c "import logloom; print('Logloom ready!')"
+
+# 或使用传统方式
+pip install -e .
+python -c "import logloom; print('Logloom ready!')"
+```
+
+Python代码示例：
 
 ```python
 import logloom_py as ll

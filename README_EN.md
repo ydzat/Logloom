@@ -95,8 +95,57 @@ In the future, Logloom will support:
 - **Structured First**  
   Logs are recorded in a standardized structure (such as JSON lines), ensuring they are both readable and parseable.
 
-- **Rich Context**  
-  Logs include runtime environment, resource status, call stack, and more, supporting deep analysis.
+## 📋 System Requirements
+
+### Environment Requirements
+
+- **Operating System**: Linux (Fedora 41 or Ubuntu 22.04+ recommended)
+- **Compiler**: GCC 5.0+ or Clang 5.0+
+- **Build Tools**: Make
+- **Python**: 3.12.11+ (uv environment manager recommended)
+- **Package Manager**: uv (recommended) or pip
+
+### Dependencies
+
+Install dependencies on Fedora:
+```bash
+sudo dnf install make gcc libyaml-devel pkgconfig python3-devel
+```
+
+Install dependencies on Ubuntu/Debian:
+```bash
+sudo apt-get update
+sudo apt-get install build-essential libyaml-dev pkg-config python3-dev
+```
+
+### Python Environment Management (uv recommended)
+
+1. Install uv:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+2. Clone project and setup environment:
+```bash
+git clone https://github.com/yourusername/logloom.git
+cd logloom
+uv sync  # Automatically creates virtual environment and installs dependencies
+```
+
+3. Run Python tests:
+```bash
+uv run pytest tests/python/ -v
+```
+
+### Traditional pip method (if not using uv)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+## 🚀 Quick Start
 
 - **Language Agnostic**  
   The log standard is decoupled from implementation languages, usable in any environment supporting basic output.
@@ -264,10 +313,40 @@ pip install -r requirements-dev.txt
 
 ### Installation
 
-1. Clone the repository
+1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/Logloom.git
    cd Logloom
+   ```
+
+2. Setup Python environment using uv (recommended):
+   ```bash
+   # Install uv if not already installed
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   
+   # Setup project environment
+   uv sync  # Automatically creates .venv and installs dependencies
+   ```
+
+3. Or use traditional pip method:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -e .
+   ```
+
+4. Build the C library:
+   ```bash
+   make clean && make
+   ```
+
+5. Test the installation:
+   ```bash
+   # Test C library
+   ./demo
+   
+   # Test Python bindings
+   uv run pytest tests/python/ -v
    ```
 
 2. Build the core library

@@ -1,4 +1,8 @@
-# Compiled object files
+# ===========================================
+# Compiled Files and Build Artifacts
+# ===========================================
+
+# Object files
 *.o
 *.ko
 *.obj
@@ -30,62 +34,244 @@
 *.idb
 *.pdb
 
-# Log files
-*.log
-*.log.*
-
-# Build directory content
+# Build directories
+build/
 build/*
 !build/.gitkeep
+dist/
+.build/
 
-# Editor files
+# ===========================================
+# Log Files and Runtime Artifacts
+# ===========================================
+
+# Log files (all patterns)
+*.log
+*.log.*
+*.log.20*
+logs/
+logs/*
+!logs/.gitkeep
+
+# Runtime files
+*.pid
+*.lock
+core
+core.*
+
+# ===========================================
+# Python Environment and Packages
+# ===========================================
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Python distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===========================================
+# Development Tools and IDEs
+# ===========================================
+
+# Visual Studio Code
 .vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
 .idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-*
+
+# Vim
 *.swp
+*.swo
 *~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===========================================
+# Generated and Temporary Files
+# ===========================================
 
 # Generated header files
 include/generated/*
 !include/generated/.gitkeep
+kernel/include/generated/*
+!kernel/include/generated/.gitkeep
 
-# 编译产物
-*.o
-*.so
-*.a
-*.out
-*.exe
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
 
-# 临时文件
-*.swp
-*.swo
-*~
-.DS_Store
+# Test artifacts
+test_output/
+test_results/
 
-# 编译目录
-/build/
+# ===========================================
+# Binary Executables (Project Specific)
+# ===========================================
 
-# 日志文件
-*.log
-*.log.*
+# Main demo and test executables
+/demo
+/lang_test
 
-# IDE 文件
-.vscode/
-.idea/
-*.sublime-*
-*.code-workspace
-
-# 临时测试文件
-/tmp/
-/test/tmp/
-
-# 二进制可执行文件
+# Test executables
 /tests/config_test
 /tests/lang_test
 /tests/log_rotate_test
 /tests/log_test
 /tests/plugin_test
-/demo
 
-# 其他生成文件
-/include/generated/
+# Kernel test executables
+/kernel/tests/logloom_test
+
+# ===========================================
+# Configuration and Sensitive Files
+# ===========================================
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Configuration backup files
+*.conf.bak
+*.config.bak
+config.yaml.bak
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+
+# SSL/TLS certificates
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# ===========================================
+# Package Manager Lock Files
+# ===========================================
+
+# uv lock file (keep this for dependency management)
+# uv.lock should be committed
+
+# npm/yarn (if any Node.js tools are added)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===========================================
+# Documentation Build Files
+# ===========================================
+
+# Sphinx documentation
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.toc
+
+# ===========================================
+# Archive Files
+# ===========================================
+
+# Compressed files
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.zip
+*.rar
+*.7z
+*.bz2
+*.gz
+*.xz
